@@ -1,0 +1,243 @@
+library(tidyverse)
+library(janitor)
+library(corrplot)
+
+# Introduction
+The Behavioral Risk Factor Surveillance System (BRFSS) is a health-related telephone survey that is collected annually by the CDC. Each year, the survey collects responses from over 400,000 Americans on health-related risk behaviors, chronic health conditions, and the use of preventative services. It has been conducted every year since 1984. For this project, a csv of the dataset available on Kaggle for the year 2015 was used. This original dataset contains responses from 441,455 individuals and has 330 features. These features are either questions directly asked of participants, or calculated variables based on individual participant responses. 
+
+This dataset contains 3 files:
+
+### Clean up if not using 1 and 2
+1. diabetes _ 012 _ health _ indicators _ BRFSS2015.csv is a clean dataset of 253,680 survey responses to the CDC's BRFSS2015. The target variable Diabetes_012 has 3 classes. 0 is for no diabetes or only during pregnancy, 1 is for prediabetes, and 2 is for diabetes. There is class imbalance in this dataset. This dataset has 21 feature variables
+
+2. diabetes _ binary _ 5050split _ health _ indicators _ BRFSS2015.csv is a clean dataset of 70,692 survey responses to the CDC's BRFSS2015. It has an equal 50-50 split of respondents with no diabetes and with either prediabetes or diabetes. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is balanced.
+
+3. --> diabetes _ binary _ health _ indicators _ BRFSS2015.csv is a clean dataset of 253,680 survey responses to the CDC's BRFSS2015. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is not balanced.
+
+(Source: https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset/data)
+# Import Data
+
+```{r Import Data, include=FALSE}
+# Setup factor levels to apply using a list
+raw <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv")
+
+diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_col_types = FALSE) |>
+  mutate(Diabetes_binary = structure(
+          fct_recode(as.character(Diabetes_binary), 
+                      "no" = "0",
+                      "yes" = "1"),
+                      label = "Diabetes or Prediabetes"),
+        HighBP = structure(
+          fct_recode(as.character(HighBP),
+                      "no" = "0",
+                      "yes" = "1"),
+                      label = "High Blood Pressure"),
+        HighChol = structure(
+          fct_recode(as.character(HighChol),
+                      "no" = "0",
+                      "yes" = "1"),
+                      label = "High Cholesterol"),
+        CholCheck = structure(
+          fct_recode(as.character(CholCheck),
+                     "no" = "0",
+                     "yes" = "1"),
+                      label = "Cholesterol Check within Past 5 years"),
+        BMI = as.integer(BMI),
+        Smoker = fct_recode(as.character(Smoker),
+                        "no" = "0",
+                        "yes" = "1"),
+        Stroke = fct_recode(as.character(Stroke),
+                            "no" = "0",
+                            "yes" = "1"),
+        HeartDiseaseorAttack = fct_recode(as.character(HeartDiseaseorAttack),
+                                          "no" = "0",
+                                          "yes" = "1"),
+        PhysActivity = fct_recode(as.character(PhysActivity),
+                                  "no" = "0",
+                                  "yes" = "1"),
+        Fruits = fct_recode(as.character(Fruits),
+                            "no" = "0",
+                            "yes" = "1"),
+        Veggies = fct_recode(as.character(Veggies),
+                             "no" = "0",
+                             "yes" = "1"),
+        HvyAlcoholConsump = fct_recode(as.character(HvyAlcoholConsump),
+                                       "no" = "0",
+                                       "yes" = "1"),
+        AnyHealthcare = fct_recode(as.character(AnyHealthcare),
+                                   "no" = "0",
+                                   "yes" = "1"),
+        NoDocbcCost = fct_recode(as.character(NoDocbcCost),
+                                 "no" = "0",
+                                 "yes" = "1"),
+        GenHlth = fct_recode(as.character(GenHlth),
+                             "excellent" = "1",
+                             "very good" = "2",
+                             "good" = "3",
+                             "fair" = "4",
+                             "poor" = "5"),
+        MentHlth = structure(as.integer(MentHlth),
+                             label = "Number of days mental health not good"),
+        PhysHlth = structure(as.integer(PhysHlth),
+                             label = "Number of days physical health not good"),
+        DiffWalk = fct_recode(as.character(DiffWalk),
+                              "no" = "0",
+                              "yes" = "1"),
+        Sex = fct_recode(as.character(Sex),
+                         "female" = "0",
+                         "male" = "1"),
+        Education = fct_recode(as.character(Education),
+                                "Never attended school or only kindergarten" = "1" ,
+                                "Grades 1 through 8 (Elementary)" = "2",
+                                "Grades 9 through 11 (Some high school)" = "3",
+                                "Grade 12 or GED (High school graduate)" = "4",
+                                "College 1 year to 3 years (Some college or technical school)" = "5",
+                                "College 4 years or more (College graduate)" = "6"),
+        Age = fct_recode(as.character(Age),
+                          "18 to 24" = "1",
+                          "Age 25 to 29" = "2",
+                          "Age 30 to 34" = "3",
+                          "Age 35 to 39" = "4",
+                          "Age 40 to 44" = "5",
+                          "Age 45 to 49" = "6",
+                          "Age 50 to 54" = "7",
+                          "Age 55 to 59" = "8",
+                          "Age 60 to 64" = "9",
+                          "Age 65 to 69" = "10", 
+                          "Age 70 to 74" = "11", 
+                          "Age 75 to 79" = "12",
+                          "Age 80 or older" = "13"),
+        Income = fct_recode(as.character(Income),
+                            "Less than $10,000" = "1",
+                            "Less than $15,000 ($10,000 to less than $15,000)" = "2",
+                            "Less than $20,000 ($15,000 to less than $20,000)" = "3",
+                            "Less than $25,000 ($20,000 to less than $25,000)" = "4",
+                            "Less than $35,000 ($25,000 to less than $35,000)" = "5",
+                            "Less than $50,000 ($35,000 to less than $50,000)" = "6",
+                            "Less than $75,000 ($50,000 to less than $75,000)" = "7",
+                            "$75,000 or more" = "8")
+         )
+```
+  
+# EDA
+## Purpose: The purpose of this EDA is to create meaningful summary statistics and plots with `Diabetes_binary` as the 
+##            primary response variable. Various summaries describing data structures, summaries, accounting of missing
+##            values, distributions of data, contingency tables, plots, correlations, etc will be created so that we can
+##            form the basis for the elucidation and analysis of meaningful patterns in the dataset capable of predicting 
+##            the onset of diabetes via the `Diabetes_binary` variable
+
+### Data Inspection
+```{r}
+# Structure of imported and transformed data
+glimpse(diabeetus)
+str(diabeetus)
+
+# Basic summaries
+psych::describe(diabeetus)
+knitr::kable(summary(diabeetus))
+
+# Missing values
+colSums(is.na(diabeetus))
+## No missing values
+
+# Create a summary table for missing
+missing_summ <- diabeetus |>
+  summarize(across(everything(), \(x) sum(is.na(x)))) |>
+  pivot_longer(everything(),
+                names_to = "Variable",
+                values_to = "Missing Count")
+missing_summ
+
+```
+
+### Covariance and Correlation Tables
+### Contingency Tables
+#### Summary Stats for Categorical variables
+```{r}
+
+```
+
+#### Contingency tables to show the distribution of diabetes
+```{r}
+table(diabeetus$Diabetes_binary)
+diabeetus |>
+  mutate(mh_grp = factor(diabeetus$MentHlth >= 29,
+                                 levels = c(FALSE,TRUE),
+                                 labels = c("Less than 29 days", "29 or more days"))) |>
+  tabyl(mh_grp) |>
+  adorn_pct_formatting()
+ggplot(diabeetus, aes(x = Diabetes_binary )) + geom_bar()
+
+```
+
+#### Creating Contingency tables for interesting variables
+### Histograms of numeric variables
+#### Visualizing the distribution of numeric variables in the data
+```{r}
+ggplot(diabeetus, aes(x = BMI )) + geom_histogram()
+ggplot(diabeetus, aes(x = MentHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Mental Health in Last Month",y = "Number of People")
+ggplot(diabeetus, aes(x = PhysHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Physical Health in Last Month",y = "Number of People")
+```
+
+### Based on the skewness of the distribution, how many people had poor mental and physical health between 20 and 30 days of the month
+```{r}
+#### Summary Table
+diabeetus |>
+  mutate(mh_grp = factor(diabeetus$MentHlth >= 29,
+                                 levels = c(FALSE,TRUE),
+                                 labels = c("Less than 29 days", "29 or more days"))) |>
+  tabyl(mh_grp) |>
+  adorn_pct_formatting()
+
+ggplot(diabeetus, aes(x = factor(MentHlth >= 29,
+                                 levels = c(FALSE,TRUE),
+                                 labels = c("Less than 29 days", "29 or more days")))) +
+  geom_bar() +
+  labs(x = "Days of Poor Mental Health",
+       y = "Count",
+       title = "Distribution of Mental Health Days") +
+  theme_minimal()
+```
+
+```{r}
+diabeetus |>
+  mutate(ph_grp = factor(PhysHlth >= 29,
+                                 levels = c(FALSE,TRUE),
+                                 labels = c("Less than 29 days", "29 or more days")),
+                            ) |>
+  tabyl(ph_grp) |>
+  adorn_pct_formatting() |>
+  rename("Days of Poor Physical Health" = ph_grp)
+
+ggplot(diabeetus, aes(x = factor(PhysHlth >= 29,
+                                 levels = c(FALSE,TRUE),
+                                 labels = c("Less than 29 days", "29 or more days")))) +
+  geom_bar() +
+  labs(x = "Days of Poor Physical Health",
+       y = "Count",
+       title = "Distribution of Physical Health Days") +
+  theme_minimal()
+```
+
+
+
+
+### Correlation Plot
+#### Purpose: Determine correlations between the predictor variable and other factors
+
+```{r}
+cor_matrix <- daily_summ |>
+  select(total_bikes, avg_temp, avg_humidity, avg_wind_speed,
+         avg_visibility, avg_solar_rad, total_rainfall, total_snowfall) |>
+  cor(use = "complete.obs")
+cor_matrix
+# Create correlation plot
+corrplot(cor_matrix,
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         tl.col = "black",
+         tl.srt = 45,
+         diag = FALSE)
+```
+
