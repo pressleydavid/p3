@@ -150,24 +150,35 @@ missing_summ
 
 ```
 
-### Covariance and Correlation Tables
-### Contingency Tables
-#### Summary Stats for Categorical variables
+
+### Bar Plots for categorical variables
 ```{r}
+categorical_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
+x <- 1
+plot_list <- list()
+for (i in categorical_vars){
+  plot_list[[x]] <- ggplot(diabeetus, aes_string(x = i)) + 
+    geom_bar() +
+    labs(title = paste("Bar plot of", i)) +
+    scale_x_discrete(guide = guide_axis(angle = 45))
+  print(plot_list[[x]])
+  x <- x + 1
+}
+
 
 ```
 
+### Covariance and Correlation Tables
+### Contingency Tables
+#### Summary Stats for Categorical variables
+
+
 #### Contingency tables to show the distribution of diabetes
 ```{r}
-table(diabeetus$Diabetes_binary)
-diabeetus |>
-  mutate(mh_grp = factor(diabeetus$MentHlth >= 29,
-                                 levels = c(FALSE,TRUE),
-                                 labels = c("Less than 29 days", "29 or more days"))) |>
-  tabyl(mh_grp) |>
-  adorn_pct_formatting()
-ggplot(diabeetus, aes(x = Diabetes_binary )) + geom_bar()
-
+ggplot(diabeetus, aes(x =  Diabetes_binary )) + geom_bar()
+ggplot(diabeetus, aes(x =  Smoker )) + geom_bar()
+ggplot(diabeetus, aes(x =  HighBP )) + geom_bar()
+ggplot(diabeetus, aes(x =  HighChol )) + geom_bar()
 ```
 
 #### Creating Contingency tables for interesting variables
