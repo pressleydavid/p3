@@ -1,8 +1,12 @@
+
+
+```{r, echo=FALSE}
 library(tidyverse)
 library(janitor)
-library(corrplot)Y
+library(corrplot)
 library(patchwork)
 library(svglite)
+```
 
 # Introduction
 The Behavioral Risk Factor Surveillance System (BRFSS) is a health-related telephone survey that is collected annually by the CDC. Each year, the survey collects responses from over 400,000 Americans on health-related risk behaviors, chronic health conditions, and the use of preventative services. It has been conducted every year since 1984. For this project, a csv of the dataset available on Kaggle for the year 2015 was used. This original dataset contains responses from 441,455 individuals and has 330 features. These features are either questions directly asked of participants, or calculated variables based on individual participant responses. 
@@ -274,7 +278,6 @@ combined_plots
 ```
 
 
-### Covariance and Correlation Tables
 ### Contingency Tables
 ```{r}
 # Basic One-Way table
@@ -314,14 +317,52 @@ diabeetus_summary
 
 
 #Visualize
-ggplot(diabeetus, aes(x = HighBP, fill = Diabetes_binary)) +
-  geom_bar(position = "fill") +
-  labs(title = "Diabetes Status by High BP",
-       x = "High Blood Pressure",
-       y = "Proportion",
-       fill = "Diabetes Status") +
-  scale_fill_brewer(palette = "Set2")
+### Stacked plots to show proportions of Diabetes_binary
+# Function to create proportion plots for multiple variables
+create_prop_plot <- function(data, var_name) {
+  data %>%
+    ggplot(aes(x = Diabetes_binary, fill = !!sym(var_name))) +
+    geom_bar(position = "fill") +
+    labs(
+      title = paste("Proportion of", var_name),
+      x = "Diabetes Status",
+      y = "Proportion",
+      fill = var_name
+    ) +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal()
+}
+
+# Create plots for multiple variables
+vars_to_plot <- c("Diabetes_binary", "HighBP", "HighChol", "CholCheck",
+                  "Smoker", "Stroke", "HeartDiseaseorAttack", "PhysActivity",
+                  "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+                  "NoDocbcCost",  "DiffWalk", "Sex" )
+
+plot_list <- map(vars_to_plot, ~create_prop_plot(diabeetus, .x))
+
+combined_plot <- wrap_plots(plot_list, ncol = 4) +
+  plot_annotation(
+    title = "Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+combined_plot
+
+multi_level_vars <- c("GenHlth", "Age","Education", "Income")
+multi_list <- map(multi_level_vars, ~create_prop_plot(diabeetus, .x))
+
+combined_plot <- wrap_plots(multi_list, ncol = 2) +
+  plot_annotation(
+    title = "Multi-level Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+combined_plot
 ```
+
 
 
 #### Summary Stats
@@ -332,7 +373,6 @@ diabetes_summary <- diabeetus |>
   summarize(
     n = n(),
     pct_total = n() / nrow(diabeetus) * 100,
-    
     pct_highbp = mean(HighBP == "yes") * 100,
     pct_highchol = mean(HighChol == "yes") * 100,
     mean_bmi = mean(BMI),
@@ -359,6 +399,15 @@ knitr::kable(diabetes_summary,
                           "% Daily Fruit", "% Daily Veg", "% Heavy Drinker", "% Have Healthcare",
                           "% Healthcare too Expensive", "Mean Mental Health Days",
                           "Mean Physical Health Days", "Difficulty Walking"))
+
+#Summary of Age
+summary_age <- diabeetus |>
+  count(Age, sort = TRUE) |>
+  mutate(pct = n/sum(n) * 100) |>
+  mutate(pct = round(pct,1))
+summary_age
+
+
 ```
 
 ### Bar plots of possible health predictors
@@ -392,8 +441,15 @@ ggplot(diabetes_long, aes(x = value, fill = Diabetes_binary)) +
     strip.text = element_text(size = 10)              
   )
   scale_fill_brewer(palette = "Set2")
-```
+  
+  # Create for multi-level factors
+  db_age_income_ed <- diabeetus |>
+  select(Diabetes_binary, Age, Income, Education) |>
+  pivot_longer(-Diabetes_binary,
+               names_to = "health_indicator",
+               values_to = "value")
 
+```
 
 ##### Factor Level Counts
 ```{r}
@@ -427,60 +483,104 @@ ggplot(diabeetus, aes(x = BMI )) + geom_histogram()
 ggplot(diabeetus, aes(x = MentHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Mental Health in Last Month",y = "Number of People")
 ggplot(diabeetus, aes(x = PhysHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Physical Health in Last Month",y = "Number of People")
 ```
-
-### Based on the skewness of the distribution, how many people had poor mental and physical health between 20 and 30 days of the month
+### Box Plots of numeric variables
 ```{r}
-#### Summary Table
-diabeetus |>
-  mutate(mh_grp = factor(diabeetus$MentHlth >= 29,
-                                 levels = c(FALSE,TRUE),
-                                 labels = c("Less than 29 days", "29 or more days"))) |>
-  tabyl(mh_grp) |>
-  adorn_pct_formatting()
+# Select numerical variables to plot
+num_vars <- c("BMI", "MentHlth", "PhysHlth")
 
-ggplot(diabeetus, aes(x = factor(MentHlth >= 29,
-                                 levels = c(FALSE,TRUE),
-                                 labels = c("Less than 29 days", "29 or more days")))) +
-  geom_bar() +
-  labs(x = "Days of Poor Mental Health",
-       y = "Count",
-       title = "Distribution of Mental Health Days") +
-  theme_minimal()
+# Should I log transform BMI? 
+# Data are skewed: Y, but not by much, and not a large range of values spanning
+# more than one order of magnitude
+
+# Should I log transform PhysHlth / MentlHlth? 
+# Data are skewed: Y, but a discrete range (0-30) so no
+# more than one order of magnitude
+
+
+
+# Create long format data for plotting
+diabetes_long <- diabeetus %>%
+  select(Diabetes_binary, all_of(num_vars)) |>
+  pivot_longer(cols = -Diabetes_binary, 
+               names_to = "variable", 
+               values_to = "value")
+
+# Create box plots
+ggplot(diabetes_long, aes(x = Diabetes_binary, y = value, fill = Diabetes_binary)) +
+  geom_boxplot() +
+  facet_wrap(~variable, scales = "free_y") +
+  labs(
+    title = "Distribution of Health Metrics by Diabetes Status",
+    x = "Diabetes Status",
+    y = "Value"
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 12, face = "bold"),
+    axis.title = element_text(size = 11),
+    plot.title = element_text(size = 14, face = "bold", hjust = 0.5)
+  )
 ```
 
+### Density Plots of numeric variables
 ```{r}
-diabeetus |>
-  mutate(ph_grp = factor(PhysHlth >= 29,
-                                 levels = c(FALSE,TRUE),
-                                 labels = c("Less than 29 days", "29 or more days")),
-                            ) |>
-  tabyl(ph_grp) |>
-  adorn_pct_formatting() |>
-  rename("Days of Poor Physical Health" = ph_grp)
-
-ggplot(diabeetus, aes(x = factor(PhysHlth >= 29,
-                                 levels = c(FALSE,TRUE),
-                                 labels = c("Less than 29 days", "29 or more days")))) +
-  geom_bar() +
-  labs(x = "Days of Poor Physical Health",
-       y = "Count",
-       title = "Distribution of Physical Health Days") +
+# BMI density plot
+bmi_density <- ggplot(diabeetus, aes(x = BMI, fill = Diabetes_binary)) +
+  geom_density(alpha = 0.5) +
+  labs(title = "BMI Distribution by Diabetes Status",
+       x = "BMI",
+       y = "Density") +
   theme_minimal()
+
+# Proportions of health status by week
+health_days <- diabeetus |>
+  pivot_longer(cols = c(MentHlth, PhysHlth), 
+              names_to = "metric", 
+              values_to = "days") |>
+  mutate(
+    day_group = case_when(
+      days == 0 ~ "0 days",
+      days >= 1 & days <= 7 ~ "1-7 days",
+      days >= 8 & days <= 14 ~ "8-14 days",
+      days >= 15 ~ "15+ days"
+    ),
+    day_group = factor(day_group, 
+                      levels = c("0 days", "1-7 days", "8-14 days", "15+ days"))
+  )
+
+hlth_density <- ggplot(health_days, aes(x = Diabetes_binary, fill = day_group)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~metric) +
+  labs(title = "Distribution of Mental and Physical Health Days",
+       x = "Diabetes Status",
+       y = "Proportion",
+       fill = "Days with\nHealth Issues") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent)
+
+# Display plots
+(bmi_density / hlth_density) * 
+  plot_annotation(
+    title = "Health Metrics by Diabetes Status",
+    theme = theme(plot.title = element_text(hjust = 0.5, size = 16))
+                                               )
 ```
+
 
 ### Covariance
 
 
 
 ### Correlation Plot
-#### Purpose: Determine correlations between the predictor variable and other factors
-
+#### Purpose: Determine correlations between the predictor variable and numeric factors
+### Outcome: Keep for use in model. Health metrics are largely independent of one another. 
 ```{r}
-cor_matrix <- daily_summ |>
-  select(total_bikes, avg_temp, avg_humidity, avg_wind_speed,
-         avg_visibility, avg_solar_rad, total_rainfall, total_snowfall) |>
-  cor(use = "complete.obs")
-cor_matrix
+num_vars <- diabeetus |>
+  select(all_of(num_vars))
+
+cor_matrix <- cor(num_vars, use = "complete.obs")
 # Create correlation plot
 corrplot(cor_matrix,
          method = "color",
@@ -490,4 +590,5 @@ corrplot(cor_matrix,
          tl.srt = 45,
          diag = FALSE)
 ```
+
 
