@@ -204,18 +204,21 @@ missing_summ
 
 ```
 
-### Prevalence of Diabetes
+### Prevalence of Diabetes in data set
+#### Quick look at the predictor variable
 ```{r}
 db_summary <- diabeetus |>
   count(Diabetes_binary) |>
   mutate(percentage = n/sum(n)*100)
 db_summary
 
-ggplot(diabeetus, aes(x = Diabetes_binary))
-       + geom_bar()
+ggplot(diabeetus, aes(x = Diabetes_binary)) + 
+  geom_bar(fill = "lightgrey")
 ```
 
+
 ### Bar Plots for categorical variables
+#### Purpose: Bar plots provide evidence that the data are balanced and provide context for next steps of EDA
 ```{r}
 #Relevel Age
 diabeetus$Age <- fct_relevel(diabeetus$Age, 
@@ -229,6 +232,7 @@ diabeetus$Age <- fct_relevel(diabeetus$Age,
 categorical_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
 x <- 1
 plot_list <- list()
+
 for (i in categorical_vars){
   plot_data <- diabeetus |>
     count(!!sym(i)) |>
@@ -251,8 +255,6 @@ for (i in categorical_vars){
   x <- x + 1
 }
 combined_plots <- wrap_plots(plot_list, ncol = 3)
-
-
 ```
 
 ```{r}
@@ -274,18 +276,150 @@ combined_plots
 
 ### Covariance and Correlation Tables
 ### Contingency Tables
-#### Summary Stats for Categorical variables
-
-
-#### Contingency tables to show the distribution of diabetes
 ```{r}
-ggplot(diabeetus, aes(x =  Diabetes_binary )) + geom_bar()
-ggplot(diabeetus, aes(x =  Smoker )) + geom_bar()
-ggplot(diabeetus, aes(x =  HighBP )) + geom_bar()
-ggplot(diabeetus, aes(x =  HighChol )) + geom_bar()
+# Basic One-Way table
+table(diabeetus$Diabetes_binary)
+
+# Two Way Tables of key health indicators
+# HighBP
+table(diabeetus$Diabetes_binary, diabeetus$HighBP) |>
+  prop.table() |>
+  round(3) *100
+
+# HighChol
+table(diabeetus$Diabetes_binary, diabeetus$HighChol) |>
+  prop.table() |>
+  round(3) *100
+
+#Summary Table
+diabeetus_summary <- diabeetus |>
+  group_by(Diabetes_binary) |>
+  summarize(
+    n = n(),
+    pct_highbp = mean(HighBP == "yes") *100,
+    pct_highchol = mean(HighChol == "yes") * 100,
+    pct_harkattach = mean(HeartDiseaseorAttack == "yes") * 100,
+    pct_heavydrinker = mean(HvyAlcoholConsump == "yes") * 100
+  ) |>
+  rename(
+    "Diabetes Status" = Diabetes_binary,
+    "Count" = n,
+    "% High BP" = pct_highbp,
+    "% High Cholesterol" = pct_highchol,
+    "% Heart Disease/Attack" = pct_harkattach,
+    "% Heavy Drinker" = pct_heavydrinker
+  )
+
+diabeetus_summary
+
+
+#Visualize
+ggplot(diabeetus, aes(x = HighBP, fill = Diabetes_binary)) +
+  geom_bar(position = "fill") +
+  labs(title = "Diabetes Status by High BP",
+       x = "High Blood Pressure",
+       y = "Proportion",
+       fill = "Diabetes Status") +
+  scale_fill_brewer(palette = "Set2")
 ```
 
+
+#### Summary Stats
+```{r}
+# Create summary statistics 
+diabetes_summary <- diabeetus |>
+  group_by(Diabetes_binary) |>
+  summarize(
+    n = n(),
+    pct_total = n() / nrow(diabeetus) * 100,
+    
+    pct_highbp = mean(HighBP == "yes") * 100,
+    pct_highchol = mean(HighChol == "yes") * 100,
+    mean_bmi = mean(BMI),
+    pct_smoker = mean(Smoker == "yes") * 100,
+    pct_stroke = mean(Stroke == "yes") * 100,
+    pct_heartdisease = mean(HeartDiseaseorAttack == "yes") * 100,
+    pct_physactive = mean(PhysActivity == "yes") * 100,
+    pct_fruits = mean(Fruits == "yes") * 100,
+    pct_veggies = mean(Veggies == "yes") * 100,
+    pct_heavydrinker = mean(HvyAlcoholConsump == "yes") * 100,
+    pct_healthcare = mean(AnyHealthcare == "yes") * 100,
+    pct_hc_cost = mean(NoDocbcCost == "yes") * 100,
+    mean_mental_days = mean(MentHlth),
+    mean_phys_days = mean(PhysHlth),
+    mean_diff_walk = mean(DiffWalk == "yes")
+  )
+
+# Format with kable
+knitr::kable(diabetes_summary, 
+             digits = 1,
+             col.names = c("Diabetes Status", "Count", "% of Total", 
+                          "% High BP","% High Cholesterol", "Mean BMI","% Smokers","% Stroke",
+                          "% Heart Disease", "% Physically Active",
+                          "% Daily Fruit", "% Daily Veg", "% Heavy Drinker", "% Have Healthcare",
+                          "% Healthcare too Expensive", "Mean Mental Health Days",
+                          "Mean Physical Health Days", "Difficulty Walking"))
+```
+
+### Bar plots of possible health predictors
+```{r}
+
+# Reshape data to long format for categorical variables
+diabetes_long <- diabeetus |>
+  select(Diabetes_binary, where(~ is.factor(.) &&  all(levels(.) %in% c("yes","no")))) |>
+  mutate(across(-Diabetes_binary, ~fct_recode(as.factor(.),
+                                              "No" = "no",
+                                              "Yes" = "yes"))) |>
+  # Diabetes_binary, HighBP, HighChol, Smoker, HeartDiseaseorAttack, 
+  #        PhysActivity, Fruits, Veggies) |>
+  pivot_longer(-Diabetes_binary,
+               names_to = "health_indicator",
+               values_to = "value")
+
+# Create faceted bar plot
+ggplot(diabetes_long, aes(x = value, fill = Diabetes_binary)) +
+  geom_bar(position = "dodge") +
+  facet_wrap(~health_indicator, scales = "free_y") +
+  labs(
+    title = "Health Indicators by Diabetes Status",
+    x = "Response",
+    y = "Count",
+    fill = "Diabetes Status"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    strip.text = element_text(size = 10)              
+  )
+  scale_fill_brewer(palette = "Set2")
+```
+
+
+##### Factor Level Counts
+```{r}
+
+factor_counts <- diabeetus |>
+  select(where(is.factor)) |>
+  map_dfr(
+    ~ fct_count(.x, sort = TRUE),
+    .id = "Variable"
+  ) |>
+  rename(
+    Level = f,
+    Count = n
+  )
+
+#Convert to long format
+# long_counts <- factor_counts |>
+#   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Counts") |>
+#   unnest_longer(Counts)
+factor_counts
+```
+
+
+
 #### Creating Contingency tables for interesting variables
+
 ### Histograms of numeric variables
 #### Visualizing the distribution of numeric variables in the data
 ```{r}
@@ -334,6 +468,7 @@ ggplot(diabeetus, aes(x = factor(PhysHlth >= 29,
   theme_minimal()
 ```
 
+### Covariance
 
 
 
