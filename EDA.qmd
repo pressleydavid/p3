@@ -479,7 +479,7 @@ factor_counts
 ### Histograms of numeric variables
 #### Visualizing the distribution of numeric variables in the data
 ```{r}
-ggplot(diabeetus, aes(x = BMI )) + geom_histogram()
+ggplot(diabeetus, aes(x = BMI)) + geom_histogram()
 ggplot(diabeetus, aes(x = MentHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Mental Health in Last Month",y = "Number of People")
 ggplot(diabeetus, aes(x = PhysHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Physical Health in Last Month",y = "Number of People")
 ```
