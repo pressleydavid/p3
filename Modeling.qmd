@@ -17,63 +17,6 @@ A classification tree is a decision tree model used for categorical outcomes (li
 ### From ESLII: ch7: if the learning curve has a considerable slope at the given
 training set size, five- or tenfold cross-validation will overestimate the true prediction error. Whether this bias is a drawback in practice depends on the objective. On the other hand, leave-one-out cross-validation has low bias but can have high variance. Overall, five- or tenfold cross-validation are recommended as a good compromise: see Breiman and Spector (1992) and Kohavi (1995). Figure 7.9 shows the prediction error and tenfold cross-validation curve
 
-
-### For categorical responses, we use log-loss (see notes for more detail)
-
-### Hand-rolling a 5-Fold CV
-```{r}
-nrow(diabeetus)
-size_fold <- floor(nrow(diabeetus)/5)
-
-#Reorder indices
-set.seed(462)
-random_indices <- sample(1:nrow(diabeetus), size = nrow(diabeetus), replace = FALSE)
-
-
-
-# iterate through the indices vector and add appropriate observations to each data set
-get_cv_splits <- function(data, num_folds){
-  #get fold size
-  size_fold <- floor(nrow(data)/num_folds)
-  #get random indices to subset the data with
-  random_indices <- sample(1:nrow(data), size = nrow(data), replace = FALSE)
-  #create a list to save our folds in
-  folds <- list()
-  #now cycle through our random indices vector and take the appropriate observations to each fold
-  for(i in 1:num_folds){
-    if (i < num_folds) {
-      fold_index <- seq(from = (i-1)*size_fold +1, to = i*size_fold, by = 1)
-      folds[[i]] <- data[random_indices[fold_index], ]
-    } else {
-      fold_index <- seq(from = (i-1)*size_fold +1, to = length(random_indices), by = 1)
-      folds[[i]] <- data[random_indices[fold_index], ]
-    }
-  }
-  return(folds)
-}
-folds <- get_cv_splits(diabeetus, 5)
-# folds[[1]]
-
-#Fit data on 4 folds, test on 5th
-#set test fold number
-test_number <- 5
-#pull out testing fold & remove from list
-test <- folds[[test_number]]
-folds[[test_number]] <- NULL
-#check length == 4
-length(folds)
-# Combind tibbles saved in different folds
-train <- purrr::reduce(folds, rbind)
-
-#Fit model and check metric on test set
-fit <- lm()
-
-
-#Return list with folds of data
-
-```
-
-
 ### Read in CSV and map factor levels
 ```{r}
 diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_col_types = FALSE) |>
@@ -227,14 +170,110 @@ diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_co
 ```
 
 
-### NOTE: Splittinginto training and test is not part of 5X CV.
+
+### For categorical responses, we use log-loss (see notes for more detail)
+### Tidymodels Implementation of a 5XCV
 ### Split into training and test
 ```{r}
-# set.seed(462)
-# split <- initial_split(diabeetus, prop = 0.7)
-# train <- training(split)
-# test <- testing(split)
+set.seed(462)
+split <- initial_split(diabeetus, prop = 0.7)
+train <- training(split)
+test <- testing(split)
+
+# Create 5XCV splits of train
+diabeetus_folds <- vfold_cv(train, v = 5)
+
+# Create recipe with 5+ predictors, based on EDA selection
+# 1. HighBP
+# 2. HighChol
+# 3. DiffWalk
+# 4. HeartDiseaseorAttack
+# 5. Smoker
+# 6. Stroke
+
+# 6 Predictors
+tree_rec1 <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
+                 Age + GenHlth + PhysActivity, data = train) |>
+  step_dummy(HighBP, HighChol, Age, GenHlth, PhysActivity) |>
+  step_normalize(BMI)
+
+# Create the decision tree model
+tree_model <- decision_tree(
+  cost_complexity = tune(),
+  tree_depth = 10,
+  min_n = 30
+) |>
+  set_engine("rpart") |>
+  set_mode("classification")
+
+# Create workflow
+tree_wkf <- workflow() |>
+  add_recipe(tree_rec1) |>
+  add_model(tree_model)
+
+# Use CV to select tuning parameters
+tuner <- tree_wkf |>
+  tune_grid(resamples = diabeetus_folds)
+
+tuner |> collect_metrics()
 ```
+
+
+
+
+### Hand-rolling a 5-Fold CV
+```{r}
+nrow(diabeetus)
+size_fold <- floor(nrow(diabeetus)/5)
+
+#Reorder indices
+set.seed(462)
+random_indices <- sample(1:nrow(diabeetus), size = nrow(diabeetus), replace = FALSE)
+
+
+
+# iterate through the indices vector and add appropriate observations to each data set
+get_cv_splits <- function(data, num_folds){
+  #get fold size
+  size_fold <- floor(nrow(data)/num_folds)
+  #get random indices to subset the data with
+  random_indices <- sample(1:nrow(data), size = nrow(data), replace = FALSE)
+  #create a list to save our folds in
+  folds <- list()
+  #now cycle through our random indices vector and take the appropriate observations to each fold
+  for(i in 1:num_folds){
+    if (i < num_folds) {
+      fold_index <- seq(from = (i-1)*size_fold +1, to = i*size_fold, by = 1)
+      folds[[i]] <- data[random_indices[fold_index], ]
+    } else {
+      fold_index <- seq(from = (i-1)*size_fold +1, to = length(random_indices), by = 1)
+      folds[[i]] <- data[random_indices[fold_index], ]
+    }
+  }
+  return(folds)
+}
+folds <- get_cv_splits(diabeetus, 5)
+# folds[[1]]
+
+#Fit data on 4 folds, test on 5th
+#set test fold number
+test_number <- 5
+#pull out testing fold & remove from list
+test <- folds[[test_number]]
+folds[[test_number]] <- NULL
+#check length == 4
+length(folds)
+# Combind tibbles saved in different folds
+train <- purrr::reduce(folds, rbind)
+
+#Fit model and check metric on test set
+fit <- lm()
+
+
+#Return list with folds of data
+
+```
+
 
 ### Fit a Classification Tree Model
 ```{r}
