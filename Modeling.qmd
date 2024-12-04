@@ -2,6 +2,8 @@
 library(tidyverse)
 library(tidymodels)
 library(tree)
+library(doParallel)
+library(rpart.plot)
 ```
 ### Purpose: Select the best model for predicting Diabetes
 Choose form of model
@@ -200,8 +202,8 @@ tree_rec1 <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
 # Create the decision tree model
 tree_model <- decision_tree(
   cost_complexity = tune(),
-  tree_depth = 10,
-  min_n = 30
+  tree_depth = tune(),
+  min_n = 50
 ) |>
   set_engine("rpart") |>
   set_mode("classification")
@@ -211,11 +213,73 @@ tree_wkf <- workflow() |>
   add_recipe(tree_rec1) |>
   add_model(tree_model)
 
-# Use CV to select tuning parameters
-tuner <- tree_wkf |>
-  tune_grid(resamples = diabeetus_folds)
 
-tuner |> collect_metrics()
+# tree_grid_reg <- grid_regular(cost_complexity(),
+#                           tree_depth(5),
+#                           levels = 5)
+
+tree_grid_rand <- grid_random(cost_complexity(),
+                              tree_depth(range = c(1,5)),
+                              size = 10)
+
+# Parallel processing setup (optional)
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
+
+# Add verbosity and logging
+control <- control_grid(
+  verbose = TRUE,             # Log progress to the console
+  save_pred = TRUE,           # Save predictions
+  save_workflow = TRUE,
+  allow_par = FALSE 
+)
+
+# Use CV to select tuning parameters with control
+set.seed(462)
+tuner <- tree_wkf |>
+  tune_grid(
+    resamples = diabeetus_folds,
+    grid = tree_grid_rand,
+    control = control,
+    metrics = metric_set(accuracy, mn_log_loss)
+  )
+
+
+# Collect and inspect metrics
+metrics <- tuner |> 
+  collect_metrics() |>
+  filter(.metric == "mn_log_loss") |>
+  arrange(mean)
+
+# Stop the parallel backend
+stopCluster(cl)
+
+# Print metrics
+print(metrics)
+
+#Select best model based on log loss
+best_tree <- select_best(tuner, metric = "mn_log_loss")
+#Finalize workflow with best parameters
+final_wf <- finalize_workflow(tree_wkf, best_tree)
+#Fit final model to training data
+final_fit <- fit(final_wf, data = train)
+
+#Print tree model
+tree_model <- final_fit |> extract_fit_engine()
+rpart.plot::rpart.plot(tree_model, roundint = FALSE)
+
+
+
+#Plot Metrics
+tuner %>%
+  collect_metrics() %>%
+  mutate(tree_depth = factor(tree_depth)) %>%
+  ggplot(aes(cost_complexity, mean, color = tree_depth)) +
+  geom_line(linewidth = 1.5, alpha = 0.6) +
+  geom_point(size = 2) +
+  facet_wrap(~ .metric, scales = "free", nrow = 2) +
+  scale_x_log10(labels = scales::label_number()) +
+  scale_color_viridis_d(option = "plasma", begin = .9, end = 0)
 ```
 
 
