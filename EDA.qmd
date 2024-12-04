@@ -592,3 +592,14 @@ corrplot(cor_matrix,
 ```
 
 
+### Outcomes
+#### Based on the clear differences of proportional incidence of diabetes via visual inspection, choice for parameters in rank-order:
+ # 1. HighBP
+ # 2. HighChol
+ # 3. DiffWalk
+ # 4. HeartDiseaseorAttack
+ # 5. Smoker
+ # 6. Stroke
+ 
+ ## TODO: Make plots of just those variables
+ 
