@@ -1,6 +1,6 @@
 
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
 library(janitor)
 library(corrplot)
@@ -192,20 +192,14 @@ str(diabeetus)
 
 # Basic summaries
 psych::describe(diabeetus)
-knitr::kable(summary(diabeetus))
 
-# Missing values
-colSums(is.na(diabeetus))
-## No missing values
-
-# Create a summary table for missing
+# Create a summary table for missing values
 missing_summ <- diabeetus |>
   summarize(across(everything(), \(x) sum(is.na(x)))) |>
   pivot_longer(everything(),
                 names_to = "Variable",
                 values_to = "Missing Count")
 missing_summ
-
 ```
 
 ### Prevalence of Diabetes in data set
@@ -217,13 +211,13 @@ db_summary <- diabeetus |>
 db_summary
 
 ggplot(diabeetus, aes(x = Diabetes_binary)) + 
-  geom_bar(fill = "lightgrey")
+  geom_bar(fill = "cornflowerblue")
 ```
 
 
 ### Bar Plots for categorical variables
 #### Purpose: Bar plots provide evidence that the data are balanced and provide context for next steps of EDA
-```{r}
+```{r BarPlots, echo=FALSE, warning=FALSE}
 #Relevel Age
 diabeetus$Age <- fct_relevel(diabeetus$Age, 
                              "18-24", "25-29", "30-34", "35-39", "40-44", 
@@ -243,17 +237,17 @@ for (i in categorical_vars){
     mutate(percentage = n / sum(n) *100)
   
   plot_list[[x]] <- ggplot(plot_data, aes_string(x = i, y = "n")) + 
-    geom_bar(stat = "identity", fill = "lightgrey") +
+    geom_bar(stat = "identity", fill = "cornflowerblue") +
     geom_text(aes(label = paste0(round(percentage, 1), "%")), size = 3, vjust = 1) +
     labs(title = attr(diabeetus[[i]], "label") %||% i,
          y = "Count",
          x = NULL) +
     theme_minimal() +
     theme(
-      plot.title = element_text(size = 11, face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
-      axis.text.y = element_text(size = 8),
-      plot.margin = margin(5, 5, 5, 5)
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      plot.margin = margin(2,2,2,2)
     )
     scale_x_discrete(guide = guide_axis(angle = 45))
   x <- x + 1
@@ -261,7 +255,7 @@ for (i in categorical_vars){
 combined_plots <- wrap_plots(plot_list, ncol = 3)
 ```
 
-```{r}
+```{r, echo = FALSE}
 #| fig.width: 15
 #| fig.height: 20
 #| out.width: "100%"
@@ -278,43 +272,8 @@ combined_plots
 ```
 
 
-### Contingency Tables
+### Stacked Proportion Plots
 ```{r}
-# Basic One-Way table
-table(diabeetus$Diabetes_binary)
-
-# Two Way Tables of key health indicators
-# HighBP
-table(diabeetus$Diabetes_binary, diabeetus$HighBP) |>
-  prop.table() |>
-  round(3) *100
-
-# HighChol
-table(diabeetus$Diabetes_binary, diabeetus$HighChol) |>
-  prop.table() |>
-  round(3) *100
-
-#Summary Table
-diabeetus_summary <- diabeetus |>
-  group_by(Diabetes_binary) |>
-  summarize(
-    n = n(),
-    pct_highbp = mean(HighBP == "yes") *100,
-    pct_highchol = mean(HighChol == "yes") * 100,
-    pct_harkattach = mean(HeartDiseaseorAttack == "yes") * 100,
-    pct_heavydrinker = mean(HvyAlcoholConsump == "yes") * 100
-  ) |>
-  rename(
-    "Diabetes Status" = Diabetes_binary,
-    "Count" = n,
-    "% High BP" = pct_highbp,
-    "% High Cholesterol" = pct_highchol,
-    "% Heart Disease/Attack" = pct_harkattach,
-    "% Heavy Drinker" = pct_heavydrinker
-  )
-
-diabeetus_summary
-
 
 #Visualize
 ### Stacked plots to show proportions of Diabetes_binary
@@ -334,34 +293,64 @@ create_prop_plot <- function(data, var_name) {
 }
 
 # Create plots for multiple variables
-vars_to_plot <- c("Diabetes_binary", "HighBP", "HighChol", "CholCheck",
-                  "Smoker", "Stroke", "HeartDiseaseorAttack", "PhysActivity",
-                  "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
-                  "NoDocbcCost",  "DiffWalk", "Sex" )
+vars_to_plot1 <- c("HighBP", "HighChol", "Smoker", "Stroke",
+                   "HeartDiseaseorAttack", "DiffWalk")
 
-plot_list <- map(vars_to_plot, ~create_prop_plot(diabeetus, .x))
+plot_list <- map(vars_to_plot1, ~create_prop_plot(diabeetus, .x))
 
-combined_plot <- wrap_plots(plot_list, ncol = 4) +
+combined_plot1 <- wrap_plots(plot_list, ncol = 2) +
   plot_annotation(
     title = "Health Indicators by Diabetes Status",
     subtitle = "Proportional distribution of various health factors",
     # caption = "Data source: Diabetes Health Indicators Dataset"
   )
 
-combined_plot
+
+ggsave("figures/health_indicators1.png", 
+       combined_plot1,
+       width = 12, 
+       height = 10)
+
+
+vars_to_plot2 <- c("CholCheck", "PhysActivity",
+                  "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+                  "NoDocbcCost", "Sex" )
+
+plot_list2 <- map(vars_to_plot2, ~create_prop_plot(diabeetus, .x))
+
+combined_plot2 <- wrap_plots(plot_list2, ncol = 2) +
+  plot_annotation(
+    title = "Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+
+ggsave("figures/health_indicators2.png", 
+       combined_plot2,
+       width = 12, 
+       height = 10)
 
 multi_level_vars <- c("GenHlth", "Age","Education", "Income")
 multi_list <- map(multi_level_vars, ~create_prop_plot(diabeetus, .x))
 
-combined_plot <- wrap_plots(multi_list, ncol = 2) +
+combined_plot3 <- wrap_plots(multi_list, ncol = 2) +
   plot_annotation(
     title = "Multi-level Health Indicators by Diabetes Status",
     subtitle = "Proportional distribution of various health factors",
     # caption = "Data source: Diabetes Health Indicators Dataset"
   )
 
-combined_plot
+ggsave("figures/health_indicators3.png", 
+       combined_plot3,
+       width = 12, 
+       height = 10)
+
 ```
+
+![Health indicators distribution by diabetes status](figures/health_indicators1.png){#fig-indicators}
+![Health indicators distribution by diabetes status](figures/health_indicators2.png){#fig-indicators}
+![Health indicators distribution by diabetes status](figures/health_indicators3.png){#fig-indicators}
 
 
 
@@ -407,74 +396,24 @@ summary_age <- diabeetus |>
   mutate(pct = round(pct,1))
 summary_age
 
-
-```
-
-### Bar plots of possible health predictors
-```{r}
-
-# Reshape data to long format for categorical variables
-diabetes_long <- diabeetus |>
-  select(Diabetes_binary, where(~ is.factor(.) &&  all(levels(.) %in% c("yes","no")))) |>
-  mutate(across(-Diabetes_binary, ~fct_recode(as.factor(.),
-                                              "No" = "no",
-                                              "Yes" = "yes"))) |>
-  # Diabetes_binary, HighBP, HighChol, Smoker, HeartDiseaseorAttack, 
-  #        PhysActivity, Fruits, Veggies) |>
-  pivot_longer(-Diabetes_binary,
-               names_to = "health_indicator",
-               values_to = "value")
-
-# Create faceted bar plot
-ggplot(diabetes_long, aes(x = value, fill = Diabetes_binary)) +
-  geom_bar(position = "dodge") +
-  facet_wrap(~health_indicator, scales = "free_y") +
-  labs(
-    title = "Health Indicators by Diabetes Status",
-    x = "Response",
-    y = "Count",
-    fill = "Diabetes Status"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1), 
-    strip.text = element_text(size = 10)              
-  )
-  scale_fill_brewer(palette = "Set2")
-  
-  # Create for multi-level factors
-  db_age_income_ed <- diabeetus |>
-  select(Diabetes_binary, Age, Income, Education) |>
-  pivot_longer(-Diabetes_binary,
-               names_to = "health_indicator",
-               values_to = "value")
-
-```
-
-##### Factor Level Counts
-```{r}
-
-factor_counts <- diabeetus |>
-  select(where(is.factor)) |>
-  map_dfr(
-    ~ fct_count(.x, sort = TRUE),
-    .id = "Variable"
+diabetes_summary_long <- diabetes_summary |>
+  pivot_longer(
+    cols = -c(Diabetes_binary, n, pct_total), 
+    names_to = "metric",
+    values_to = "value"
   ) |>
-  rename(
-    Level = f,
-    Count = n
-  )
+  mutate(
+    metric = str_remove_all(metric, "pct_|mean_"),
+    metric = str_to_title(str_replace_all(metric, "_", " "))
+  )|>
+  select(metric, everything())
 
-#Convert to long format
-# long_counts <- factor_counts |>
-#   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Counts") |>
-#   unnest_longer(Counts)
-factor_counts
+knitr::kable(diabetes_summary_long, 
+             digits = 1,
+             col.names = c("Metric","Diabetes Status", "Count", "% of Total", "Value"))
+
 ```
 
-
-
-#### Creating Contingency tables for interesting variables
 
 ### Histograms of numeric variables
 #### Visualizing the distribution of numeric variables in the data
@@ -594,12 +533,12 @@ corrplot(cor_matrix,
 
 ### Outcomes
 #### Based on the clear differences of proportional incidence of diabetes via visual inspection, choice for parameters in rank-order:
- # 1. HighBP
- # 2. HighChol
- # 3. DiffWalk
- # 4. HeartDiseaseorAttack
- # 5. Smoker
- # 6. Stroke
+1. HighBP
+2. HighChol
+3. DiffWalk
+4. HeartDiseaseorAttack
+5. Smoker
+6. Stroke
  
  ## TODO: Make plots of just those variables
  

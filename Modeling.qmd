@@ -4,6 +4,7 @@ library(tidymodels)
 library(tree)
 library(doParallel)
 library(rpart.plot)
+library(ranger)
 ```
 ### Purpose: Select the best model for predicting Diabetes
 Choose form of model
@@ -196,8 +197,7 @@ diabeetus_folds <- vfold_cv(train, v = 5)
 # 6 Predictors
 tree_rec1 <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
                  Age + GenHlth + PhysActivity, data = train) |>
-  step_dummy(HighBP, HighChol, Age, GenHlth, PhysActivity) |>
-  step_normalize(BMI)
+  step_dummy(HighBP, HighChol, Age, GenHlth, PhysActivity)
 
 # Create the decision tree model
 tree_model <- decision_tree(
@@ -219,17 +219,17 @@ tree_wkf <- workflow() |>
 #                           levels = 5)
 
 tree_grid_rand <- grid_random(cost_complexity(),
-                              tree_depth(range = c(1,5)),
-                              size = 10)
+                              tree_depth(range = c(1,2)),
+                              size = 5)
 
 # Parallel processing setup (optional)
-cl <- makeCluster(detectCores() - 1)
-registerDoParallel(cl)
+# cl <- makeCluster(detectCores() - 1)
+# registerDoParallel(cl)
 
 # Add verbosity and logging
 control <- control_grid(
-  verbose = TRUE,             # Log progress to the console
-  save_pred = TRUE,           # Save predictions
+  verbose = TRUE,             
+  save_pred = TRUE,         
   save_workflow = TRUE,
   allow_par = FALSE 
 )
@@ -252,7 +252,7 @@ metrics <- tuner |>
   arrange(mean)
 
 # Stop the parallel backend
-stopCluster(cl)
+# stopCluster(cl)
 
 # Print metrics
 print(metrics)
@@ -262,98 +262,124 @@ best_tree <- select_best(tuner, metric = "mn_log_loss")
 #Finalize workflow with best parameters
 final_wf <- finalize_workflow(tree_wkf, best_tree)
 #Fit final model to training data
-final_fit <- fit(final_wf, data = train)
+final_tree_fit <- fit(final_wf, data = train)
 
 #Print tree model
-tree_model <- final_fit |> extract_fit_engine()
+tree_model <- final_tree_fit |> extract_fit_engine()
 rpart.plot::rpart.plot(tree_model, roundint = FALSE)
 
 
 
 #Plot Metrics
-tuner %>%
-  collect_metrics() %>%
-  mutate(tree_depth = factor(tree_depth)) %>%
-  ggplot(aes(cost_complexity, mean, color = tree_depth)) +
-  geom_line(linewidth = 1.5, alpha = 0.6) +
-  geom_point(size = 2) +
-  facet_wrap(~ .metric, scales = "free", nrow = 2) +
-  scale_x_log10(labels = scales::label_number()) +
-  scale_color_viridis_d(option = "plasma", begin = .9, end = 0)
+# tuner %>%
+#   collect_metrics() %>%
+#   mutate(tree_depth = factor(tree_depth)) %>%
+#   ggplot(aes(cost_complexity, mean, color = tree_depth)) +
+#   geom_line(linewidth = 1.5, alpha = 0.6) +
+#   geom_point(size = 2) +
+#   facet_wrap(~ .metric, scales = "free", nrow = 2) +
+#   scale_x_log10(labels = scales::label_number()) +
+#   scale_color_viridis_d(option = "plasma", begin = .9, end = 0)
 ```
 
 
 
-
-### Hand-rolling a 5-Fold CV
+### Random Forest
 ```{r}
-nrow(diabeetus)
-size_fold <- floor(nrow(diabeetus)/5)
+rf_model <- rand_forest(
+  mtry = tune(),
+  trees = 50,
+  min_n = 20
+) |>
+  set_engine("ranger", importance = "impurity") |>
+  set_mode("classification")
 
-#Reorder indices
-set.seed(462)
-random_indices <- sample(1:nrow(diabeetus), size = nrow(diabeetus), replace = FALSE)
+rf_grid <- grid_regular(
+  mtry(range = c(2, 6)),
+  levels = 5
+)
 
+rf_wkf <- workflow() |>
+  add_recipe(tree_rec1) |>
+  add_model(rf_model)
 
+control <- control_grid(
+  verbose = TRUE,         # Print progress updates during tuning
+  # allow_par = TRUE,       # Enable parallel processing
+  save_pred = TRUE,       # Save predictions for each resample
+  save_workflow = TRUE    # Save the workflow for later analysis
+)
+#Tune random forest using log loss
+rf_tuner <- rf_wkf |>
+  tune_grid(
+    control = control,
+    resamples = diabeetus_folds,
+    grid = rf_grid,
+    metrics = metric_set(accuracy, mn_log_loss)
+  )
 
-# iterate through the indices vector and add appropriate observations to each data set
-get_cv_splits <- function(data, num_folds){
-  #get fold size
-  size_fold <- floor(nrow(data)/num_folds)
-  #get random indices to subset the data with
-  random_indices <- sample(1:nrow(data), size = nrow(data), replace = FALSE)
-  #create a list to save our folds in
-  folds <- list()
-  #now cycle through our random indices vector and take the appropriate observations to each fold
-  for(i in 1:num_folds){
-    if (i < num_folds) {
-      fold_index <- seq(from = (i-1)*size_fold +1, to = i*size_fold, by = 1)
-      folds[[i]] <- data[random_indices[fold_index], ]
-    } else {
-      fold_index <- seq(from = (i-1)*size_fold +1, to = length(random_indices), by = 1)
-      folds[[i]] <- data[random_indices[fold_index], ]
-    }
-  }
-  return(folds)
-}
-folds <- get_cv_splits(diabeetus, 5)
-# folds[[1]]
+# get best RF parameters
+rf_tuner |> collect_metrics()
+best_rf <- select_best(rf_tuner, metric = "mn_log_loss")
+#Finalize workflow with best parameters
+final_wkf <- finalize_workflow(rf_wkf, best_rf)
+#Fit final model to training data
+final_rf_fit <- fit(final_wkf, data = train)
+#Print tree model
+rf_model <- final_rf_fit |> extract_fit_engine()
+# rpart.plot::rpart.plot(rf_model, roundint = FALSE)
 
-#Fit data on 4 folds, test on 5th
-#set test fold number
-test_number <- 5
-#pull out testing fold & remove from list
-test <- folds[[test_number]]
-folds[[test_number]] <- NULL
-#check length == 4
-length(folds)
-# Combind tibbles saved in different folds
-train <- purrr::reduce(folds, rbind)
+# Get proportions of OOB Samples
+rf_model$prediction.error
 
-#Fit model and check metric on test set
-fit <- lm()
-
-
-#Return list with folds of data
-
+# Make predictions on test set
+rf_predictions <- predict(final_rf_fit, new_data = test, type = "prob") %>%
+  bind_cols(test)
 ```
 
-
-### Fit a Classification Tree Model
+### Select Best Model
 ```{r}
-attach(diabeetus)
-classification_tree <- tree(Diabetes_binary ~ ., data = diabeetus)
-summary(classification_tree)
-plot(classification_tree)
-text(classification_tree, pretty = 0)
+# Fit final model with best parameters
+final_tree_wkf <- tree_wkf |>
+  finalize_workflow(best_tree)
+
+final_rf_wkf <- rf_wkf |>
+  finalize_workflow(best_rf)
+
+#Evaluate on test set
+tree_test <- final_tree_wkf |>
+  last_fit(split, metrics = metric_set(accuracy, mn_log_loss))
+
+rf_test <- final_rf_wkf |>
+  last_fit(split, metrics = metric_set(accuracy, mn_log_loss))
+
+#Compare final results
+winner <- bind_rows(
+  tree_test |> collect_metrics() |> mutate(model = "Classification Tree"),
+  rf_test |> collect_metrics() |> mutate(model = "Random Forest")
+) |>
+  select(model, .metric, .estimate)
+winner
 ```
 
-### From Lesson (Regression & Classification Trees pdf)
-```{r}
-fitTree <- tree(Diabetes_binary ~ HighBP, data = diabeetus)
-plot(fitTree)
-text(fitTree, pretty = 0)
-```
+###Outcome
+The Random Forest model performs better on both metrics:
+- Higher accuracy (0.866 vs 0.861)
+- Lower log loss (0.317 vs 0.403) 
+
+Since we're primarily using log loss as our evaluation metric, the Random Forest wins since it has a lower log loss value of 0.317 compared to the Classification Tree: 0.403 
+
+To put this in context:
+- Log loss ranges from 0 to ∞, with 0 being perfect predictions
+- Lower log loss indicates better probability estimates for class predictions
+- The Random Forest's log loss of 0.317 indicates it's providing better probability estimates than the Classification Tree's 0.403
+
+Therefore, Random Forest is the overall winner.
+
+This makes theoretical sense because:
+1. Random Forests typically outperform single trees by averaging many trees
+2. The randomization in feature selection helps prevent overfitting
+3. Random Forests generally provide better probability estimates due to their ensemble nature
 
 
 
