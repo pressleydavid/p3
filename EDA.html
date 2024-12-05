@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>ST558-FinalProject</title>
+<title>ST558 Final Project - Predictive Modeling of Diabetes Prevalence - Exploratory Data Analysis</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -79,7 +79,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">ST558-FinalProject</h1>
+<h1 class="title">ST558 Final Project - Predictive Modeling of Diabetes Prevalence - Exploratory Data Analysis</h1>
 </div>
 
 
@@ -96,17 +96,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="st558-final-project---predictive-modeling-of-diabetes-prevalence" class="level1">
-<h1>ST558 Final Project - Predictive Modeling of Diabetes Prevalence</h1>
-</section>
 <section id="introduction" class="level1">
 <h1>Introduction</h1>
 <p>The Behavioral Risk Factor Surveillance System (BRFSS) is a health-related telephone survey that is collected annually by the CDC. Each year, the survey collects responses from over 400,000 Americans on health-related risk behaviors, chronic health conditions, and the use of preventative services. It has been conducted every year since 1984. For this project, a csv of the dataset available on Kaggle for the year 2015 was used. The original dataset contains responses from 441,455 individuals and has 330 features. These features are either questions directly asked of participants, or calculated variables based on individual participant responses.</p>
 <p>Our dataset of interest is named:<code>diabetes_binary_health_indicators_BRFSS2015.csv</code> and is a clean dataset of 253,680 survey responses to the CDC’s BRFSS2015. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is not balanced.</p>
 <p>(Source: https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset/data)</p>
-</section>
-<section id="import-data-and-code-factor-levels-according-to-the-specifications-provided-for-the-data.-a-short-label-is-provided-for-concise-labeling-of-plots-and-tables-and-a-long-variable-to-provide-additional-information-about-the-variable" class="level1">
-<h1>Import Data and code factor levels according to the specifications provided for the data. A short label is provided for concise labeling of plots and tables, and a long variable to provide additional information about the variable</h1>
+<section id="import-data-and-code-factor-levels" class="level4">
+<h4 class="anchored" data-anchor-id="import-data-and-code-factor-levels">Import Data and code factor levels</h4>
+<p>A short label is provided for concise labeling of plots and tables, and a long variable to provide additional information about the variable</p>
 <div class="cell" data-output-fold="true">
 <details class="code-fold">
 <summary>Code</summary>
@@ -264,8 +261,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </details>
 </div>
 </section>
-<section id="eda" class="level1">
-<h1>EDA</h1>
+<section id="eda" class="level2">
+<h2 class="anchored" data-anchor-id="eda">EDA</h2>
 <p>Purpose: The purpose of this EDA is to create meaningful summary statistics and plots with <code>Diabetes_binary</code> as the primary response variable. Various summaries describing data structures, summaries, accounting of missing values, distributions of data, contingency tables, plots, correlations, etc will be created so that we can form the basis for the elucidation and analysis of meaningful patterns in the dataset capable of predicting the onset of diabetes via the <code>Diabetes_binary</code> variable</p>
 <section id="data-inspection" class="level3">
 <h3 class="anchored" data-anchor-id="data-inspection">Data Inspection</h3>
@@ -981,6 +978,7 @@ Figure&nbsp;1: Bar Plots for categorical variables
 <li>GenHlth</li>
 </ol>
 <p><a href="Modeling.html">Click here for the Modeling Page</a></p>
+</section>
 </section>
 </section>
 </section>

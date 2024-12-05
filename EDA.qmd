@@ -22,7 +22,8 @@ Our dataset of interest is named:`diabetes_binary_health_indicators_BRFSS2015.cs
 
 (Source: https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset/data)
 
-# Import Data and code factor levels according to the specifications provided for the data. A short label is provided for concise labeling of plots and tables, and a long variable to provide additional information about the variable
+#### Import Data and code factor levels
+A short label is provided for concise labeling of plots and tables, and a long variable to provide additional information about the variable
 
 ```{r Import Data, message=FALSE}
 #| code-fold: true
@@ -180,7 +181,7 @@ diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_co
          )
 ```
   
-# EDA
+## EDA
 Purpose: The purpose of this EDA is to create meaningful summary statistics and plots with `Diabetes_binary` as the primary response variable. Various summaries describing data structures, summaries, accounting of missing values, distributions of data, contingency tables, plots, correlations, etc will be created so that we can form the basis for the elucidation and analysis of meaningful patterns in the dataset capable of predicting the onset of diabetes via the `Diabetes_binary` variable
 
 ### Data Inspection
