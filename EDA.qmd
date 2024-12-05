@@ -1,4 +1,10 @@
-
+---
+title: "ST558 Final Project - Predictive Modeling of Diabetes Prevalence - Exploratory Data Analysis"
+format:
+  html:
+    code-fold: true
+    output-fold: true
+---
 
 ```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
@@ -8,22 +14,19 @@ library(patchwork)
 library(svglite)
 ```
 
+
 # Introduction
-The Behavioral Risk Factor Surveillance System (BRFSS) is a health-related telephone survey that is collected annually by the CDC. Each year, the survey collects responses from over 400,000 Americans on health-related risk behaviors, chronic health conditions, and the use of preventative services. It has been conducted every year since 1984. For this project, a csv of the dataset available on Kaggle for the year 2015 was used. This original dataset contains responses from 441,455 individuals and has 330 features. These features are either questions directly asked of participants, or calculated variables based on individual participant responses. 
+The Behavioral Risk Factor Surveillance System (BRFSS) is a health-related telephone survey that is collected annually by the CDC. Each year, the survey collects responses from over 400,000 Americans on health-related risk behaviors, chronic health conditions, and the use of preventative services. It has been conducted every year since 1984. For this project, a csv of the dataset available on Kaggle for the year 2015 was used. The original dataset contains responses from 441,455 individuals and has 330 features. These features are either questions directly asked of participants, or calculated variables based on individual participant responses. 
 
-This dataset contains 3 files:
-
-### Clean up if not using 1 and 2
-1. diabetes _ 012 _ health _ indicators _ BRFSS2015.csv is a clean dataset of 253,680 survey responses to the CDC's BRFSS2015. The target variable Diabetes_012 has 3 classes. 0 is for no diabetes or only during pregnancy, 1 is for prediabetes, and 2 is for diabetes. There is class imbalance in this dataset. This dataset has 21 feature variables
-
-2. diabetes _ binary _ 5050split _ health _ indicators _ BRFSS2015.csv is a clean dataset of 70,692 survey responses to the CDC's BRFSS2015. It has an equal 50-50 split of respondents with no diabetes and with either prediabetes or diabetes. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is balanced.
-
-3. --> diabetes _ binary _ health _ indicators _ BRFSS2015.csv is a clean dataset of 253,680 survey responses to the CDC's BRFSS2015. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is not balanced.
+Our dataset of interest is named:`diabetes_binary_health_indicators_BRFSS2015.csv` and is a clean dataset of 253,680 survey responses to the CDC's BRFSS2015. The target variable Diabetes_binary has 2 classes. 0 is for no diabetes, and 1 is for prediabetes or diabetes. This dataset has 21 feature variables and is not balanced.
 
 (Source: https://www.kaggle.com/datasets/alexteboul/diabetes-health-indicators-dataset/data)
-# Import Data
 
-```{r Import Data, include=FALSE}
+# Import Data and code factor levels according to the specifications provided for the data. A short label is provided for concise labeling of plots and tables, and a long variable to provide additional information about the variable
+
+```{r Import Data, message=FALSE}
+#| code-fold: true
+#| output-fold: true
 # Setup factor levels to apply using a list
 raw <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv")
 
@@ -178,20 +181,54 @@ diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_co
 ```
   
 # EDA
-## Purpose: The purpose of this EDA is to create meaningful summary statistics and plots with `Diabetes_binary` as the 
-##            primary response variable. Various summaries describing data structures, summaries, accounting of missing
-##            values, distributions of data, contingency tables, plots, correlations, etc will be created so that we can
-##            form the basis for the elucidation and analysis of meaningful patterns in the dataset capable of predicting 
-##            the onset of diabetes via the `Diabetes_binary` variable
+Purpose: The purpose of this EDA is to create meaningful summary statistics and plots with `Diabetes_binary` as the primary response variable. Various summaries describing data structures, summaries, accounting of missing values, distributions of data, contingency tables, plots, correlations, etc will be created so that we can form the basis for the elucidation and analysis of meaningful patterns in the dataset capable of predicting the onset of diabetes via the `Diabetes_binary` variable
 
 ### Data Inspection
+#### Purpose: Observe the structure of imported data, basic summaries, and summary of missing values
+#### Observations: 
+##### 1. Successful import and variable factoring
+##### 2. No missing values
+##### 3. Expected factor levels
 ```{r}
 # Structure of imported and transformed data
 glimpse(diabeetus)
 str(diabeetus)
 
-# Basic summaries
-psych::describe(diabeetus)
+#Summaries of numerics
+num_summs <- diabeetus |>
+  select(where(is.numeric)) |>
+  summarize(across(everything(),
+                   list(
+                     mean = \(x) mean(x, na.rm = TRUE),
+                     sd = \(x) sd(x, na.rm = TRUE),
+                     median = \(x) median(x, na.rm = TRUE),
+                     iqr = \(x) IQR(x, na.rm = TRUE),
+                     min = \(x) min(x, na.rm = TRUE),
+                     max = \(x) max(x, na.rm = TRUE),
+                     n_missing = \(x) sum(is.na(x))
+                   ))) |>
+  pivot_longer(
+    everything(),
+    names_to = c("column", "stat"),
+    names_pattern = "(.*)_(.*)",
+    values_to = "values"
+  )
+num_summs
+
+# Factor levels summary
+factor_levels <- diabeetus |>
+  select(where(is.factor), where(is.character)) |>
+  summarize(across(everything(), \(x) list(sort(unique(x))))) |>
+  pivot_longer(
+    everything(),
+    names_to = "column",
+    values_to = "levels"
+  ) |>
+  mutate(
+    n_levels = map_int(levels, length),
+    levels = map_chr(levels, toString)
+  )
+factor_levels
 
 # Create a summary table for missing values
 missing_summ <- diabeetus |>
@@ -201,160 +238,8 @@ missing_summ <- diabeetus |>
                 values_to = "Missing Count")
 missing_summ
 ```
-
-### Prevalence of Diabetes in data set
-#### Quick look at the predictor variable
-```{r}
-db_summary <- diabeetus |>
-  count(Diabetes_binary) |>
-  mutate(percentage = n/sum(n)*100)
-db_summary
-
-ggplot(diabeetus, aes(x = Diabetes_binary)) + 
-  geom_bar(fill = "cornflowerblue")
-```
-
-
-### Bar Plots for categorical variables
-#### Purpose: Bar plots provide evidence that the data are balanced and provide context for next steps of EDA
-```{r BarPlots, echo=FALSE, warning=FALSE}
-#Relevel Age
-diabeetus$Age <- fct_relevel(diabeetus$Age, 
-                             "18-24", "25-29", "30-34", "35-39", "40-44", 
-                             "45-49", "50-54", "55-59", "60-64", "65-69", 
-                             "70-74", "75-79", ">80")
-
-# Table for Diabetes_binary
-# barplot(table(diabeetus$Diabetes_binary))
-
-categorical_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
-x <- 1
-plot_list <- list()
-
-for (i in categorical_vars){
-  plot_data <- diabeetus |>
-    count(!!sym(i)) |>
-    mutate(percentage = n / sum(n) *100)
-  
-  plot_list[[x]] <- ggplot(plot_data, aes_string(x = i, y = "n")) + 
-    geom_bar(stat = "identity", fill = "cornflowerblue") +
-    geom_text(aes(label = paste0(round(percentage, 1), "%")), size = 3, vjust = 1) +
-    labs(title = attr(diabeetus[[i]], "label") %||% i,
-         y = "Count",
-         x = NULL) +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 14, face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-      axis.text.y = element_text(size = 10),
-      plot.margin = margin(2,2,2,2)
-    )
-    scale_x_discrete(guide = guide_axis(angle = 45))
-  x <- x + 1
-}
-combined_plots <- wrap_plots(plot_list, ncol = 3)
-```
-
-```{r, echo = FALSE}
-#| fig.width: 15
-#| fig.height: 20
-#| out.width: "100%"
-#| fig.path: "figures/"
-
-ggsave("categorical_distributions.svg",
-       combined_plots,
-       width = 15,
-       height = 20,
-       device = "svg"
-       )
-
-combined_plots
-```
-
-
-### Stacked Proportion Plots
-```{r}
-
-#Visualize
-### Stacked plots to show proportions of Diabetes_binary
-# Function to create proportion plots for multiple variables
-create_prop_plot <- function(data, var_name) {
-  data %>%
-    ggplot(aes(x = Diabetes_binary, fill = !!sym(var_name))) +
-    geom_bar(position = "fill") +
-    labs(
-      title = paste("Proportion of", var_name),
-      x = "Diabetes Status",
-      y = "Proportion",
-      fill = var_name
-    ) +
-    scale_y_continuous(labels = scales::percent) +
-    theme_minimal()
-}
-
-# Create plots for multiple variables
-vars_to_plot1 <- c("HighBP", "HighChol", "Smoker", "Stroke",
-                   "HeartDiseaseorAttack", "DiffWalk")
-
-plot_list <- map(vars_to_plot1, ~create_prop_plot(diabeetus, .x))
-
-combined_plot1 <- wrap_plots(plot_list, ncol = 2) +
-  plot_annotation(
-    title = "Health Indicators by Diabetes Status",
-    subtitle = "Proportional distribution of various health factors",
-    # caption = "Data source: Diabetes Health Indicators Dataset"
-  )
-
-
-ggsave("figures/health_indicators1.png", 
-       combined_plot1,
-       width = 12, 
-       height = 10)
-
-
-vars_to_plot2 <- c("CholCheck", "PhysActivity",
-                  "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
-                  "NoDocbcCost", "Sex" )
-
-plot_list2 <- map(vars_to_plot2, ~create_prop_plot(diabeetus, .x))
-
-combined_plot2 <- wrap_plots(plot_list2, ncol = 2) +
-  plot_annotation(
-    title = "Health Indicators by Diabetes Status",
-    subtitle = "Proportional distribution of various health factors",
-    # caption = "Data source: Diabetes Health Indicators Dataset"
-  )
-
-
-ggsave("figures/health_indicators2.png", 
-       combined_plot2,
-       width = 12, 
-       height = 10)
-
-multi_level_vars <- c("GenHlth", "Age","Education", "Income")
-multi_list <- map(multi_level_vars, ~create_prop_plot(diabeetus, .x))
-
-combined_plot3 <- wrap_plots(multi_list, ncol = 2) +
-  plot_annotation(
-    title = "Multi-level Health Indicators by Diabetes Status",
-    subtitle = "Proportional distribution of various health factors",
-    # caption = "Data source: Diabetes Health Indicators Dataset"
-  )
-
-ggsave("figures/health_indicators3.png", 
-       combined_plot3,
-       width = 12, 
-       height = 10)
-
-```
-
-![Health indicators distribution by diabetes status](figures/health_indicators1.png){#fig-indicators}
-![Health indicators distribution by diabetes status](figures/health_indicators2.png){#fig-indicators}
-![Health indicators distribution by diabetes status](figures/health_indicators3.png){#fig-indicators}
-
-
-
-#### Summary Stats
+### Summary Stats
+##### Purpose: Observe the mean for factors with affirmative factor levels (i.e. "Yes")
 ```{r}
 # Create summary statistics 
 diabetes_summary <- diabeetus |>
@@ -380,7 +265,7 @@ diabetes_summary <- diabeetus |>
   )
 
 # Format with kable
-knitr::kable(diabetes_summary, 
+knitr::kable(diabetes_summary,
              digits = 1,
              col.names = c("Diabetes Status", "Count", "% of Total", 
                           "% High BP","% High Cholesterol", "Mean BMI","% Smokers","% Stroke",
@@ -396,27 +281,11 @@ summary_age <- diabeetus |>
   mutate(pct = round(pct,1))
 summary_age
 
-diabetes_summary_long <- diabetes_summary |>
-  pivot_longer(
-    cols = -c(Diabetes_binary, n, pct_total), 
-    names_to = "metric",
-    values_to = "value"
-  ) |>
-  mutate(
-    metric = str_remove_all(metric, "pct_|mean_"),
-    metric = str_to_title(str_replace_all(metric, "_", " "))
-  )|>
-  select(metric, everything())
-
-knitr::kable(diabetes_summary_long, 
-             digits = 1,
-             col.names = c("Metric","Diabetes Status", "Count", "% of Total", "Value"))
-
 ```
 
 
 ### Histograms of numeric variables
-#### Visualizing the distribution of numeric variables in the data
+##### Visualizing the distribution of numeric variables in the data
 ```{r}
 ggplot(diabeetus, aes(x = BMI)) + geom_histogram()
 ggplot(diabeetus, aes(x = MentHlth )) + geom_histogram(binwidth = 5) + labs(x = "Days of Poor Mental Health in Last Month",y = "Number of People")
@@ -508,9 +377,162 @@ hlth_density <- ggplot(health_days, aes(x = Diabetes_binary, fill = day_group)) 
 ```
 
 
+### Bar Plots for categorical variables
+##### Purpose: Bar plots to visualize the distribution of categorical variables with relative percentages as plot labels
+##### Observations: 
+###### 1. No unknown or missing value levels
+###### 2. There are few subjects with diabetes (86% Do not have Diabetes or Prediabetes, 14% have Diabetes)
+
+```{r BarPlots, echo=FALSE, warning=FALSE}
+#Relevel Age
+diabeetus$Age <- fct_relevel(diabeetus$Age, 
+                             "18-24", "25-29", "30-34", "35-39", "40-44", 
+                             "45-49", "50-54", "55-59", "60-64", "65-69", 
+                             "70-74", "75-79", ">80")
+
+# Table for Diabetes_binary
+# barplot(table(diabeetus$Diabetes_binary))
+
+categorical_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
+x <- 1
+plot_list <- list()
+
+for (i in categorical_vars){
+  plot_data <- diabeetus |>
+    count(!!sym(i)) |>
+    mutate(percentage = n / sum(n) *100)
+  
+  plot_list[[x]] <- ggplot(plot_data, aes_string(x = i, y = "n")) + 
+    geom_bar(stat = "identity", fill = "cornflowerblue") +
+    geom_text(aes(label = paste0(round(percentage, 1), "%")), size = 3, vjust = 1) +
+    labs(title = attr(diabeetus[[i]], "label") %||% i,
+         y = "Count",
+         x = NULL) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.text.y = element_text(size = 10),
+      plot.margin = margin(2,2,2,2)
+    )
+    scale_x_discrete(guide = guide_axis(angle = 45))
+  x <- x + 1
+}
+combined_plots <- wrap_plots(plot_list, ncol = 3)
+```
+
+```{r, echo = FALSE}
+#| fig.width: 15
+#| fig.height: 20
+#| out.width: "100%"
+#| fig.path: "figures/"
+
+ggsave("figures/categorical_distributions.svg",
+       combined_plots,
+       width = 15,
+       height = 20,
+       device = "svg"
+       )
+
+# combined_plots
+```
+![Bar Plots for categorical variables](figures/categorical_distributions.svg){#fig-indicators}
+
+### Stacked Proportion Plots
+#### Purpose: Investigae categories that have higher proportions of diabetes between factor levels as a first pass selection for model parameters
+### Observations:
+#### Largest differences between factor levels for subjects with a higher percentage of diabetes incidence are from the following variables
+##### - HighBP
+##### - HighChol
+##### - DiffWalk
+##### - HeartDiseaseorAttack
+##### - Smoker
+##### - General Health
+
+
+```{r}
+#Visualize
+# Function to create proportion plots for multiple variables
+create_prop_plot <- function(data, var_name) {
+  data %>%
+    ggplot(aes(x = Diabetes_binary, fill = !!sym(var_name))) +
+    geom_bar(position = "fill") +
+    labs(
+      title = paste("Proportion of", var_name),
+      x = "Diabetes Status",
+      y = "Proportion",
+      fill = var_name
+    ) +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal()
+}
+
+# Create plots for multiple variables
+vars_to_plot1 <- c("HighBP", "HighChol", "Smoker", "Stroke",
+                   "HeartDiseaseorAttack", "DiffWalk")
+
+plot_list <- map(vars_to_plot1, ~create_prop_plot(diabeetus, .x))
+
+combined_plot1 <- wrap_plots(plot_list, ncol = 2) +
+  plot_annotation(
+    title = "Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+
+ggsave("figures/health_indicators1.png", 
+       combined_plot1,
+       width = 12, 
+       height = 10)
+
+
+vars_to_plot2 <- c("CholCheck", "PhysActivity",
+                  "Fruits", "Veggies", "HvyAlcoholConsump", "AnyHealthcare",
+                  "NoDocbcCost", "Sex" )
+
+plot_list2 <- map(vars_to_plot2, ~create_prop_plot(diabeetus, .x))
+
+combined_plot2 <- wrap_plots(plot_list2, ncol = 2) +
+  plot_annotation(
+    title = "Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+
+ggsave("figures/health_indicators2.png", 
+       combined_plot2,
+       width = 12, 
+       height = 10)
+
+multi_level_vars <- c("GenHlth", "Age","Education", "Income")
+multi_list <- map(multi_level_vars, ~create_prop_plot(diabeetus, .x))
+
+combined_plot3 <- wrap_plots(multi_list, ncol = 2) +
+  plot_annotation(
+    title = "Multi-level Health Indicators by Diabetes Status",
+    subtitle = "Proportional distribution of various health factors",
+    # caption = "Data source: Diabetes Health Indicators Dataset"
+  )
+
+ggsave("figures/health_indicators3.png", 
+       combined_plot3,
+       width = 12, 
+       height = 10)
+
+```
+
+![Health indicators distribution by diabetes status](figures/health_indicators1.png){#fig-indicators}
+![Health indicators distribution by diabetes status](figures/health_indicators2.png){#fig-indicators}
+![Health indicators distribution by diabetes status](figures/health_indicators3.png){#fig-indicators}
+
+
+
+
 ### Correlation Plot
-#### Purpose: Determine correlations between the predictor variable and numeric factors
-### Outcome: Keep for use in model. Health metrics are largely independent of one another. 
+##### Purpose: Determine correlations between the predictor variable and numeric factors
+##### Outcome: High correlations for mental and physical health, but choosing General Health as an overall predictor because it has distinct levels
 ```{r}
 
 num_vars <- c("BMI", "MentHlth", "PhysHlth")
@@ -529,43 +551,19 @@ ggplot(data = as.data.frame(numeric_correlations) %>%
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   labs(title = "Correlation Heatmap of Numeric Variables")
 
-# Create correlation plot
-corrplot(cor_matrix,
-         method = "color",
-         type = "upper",
-         addCoef.col = "black",
-         tl.col = "black",
-         tl.srt = 45,
-         diag = FALSE)
-
-# Contingency table heat map for categorical variables
-cat_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
-
-diabeetus %>%
-  select(Diabetes_binary, all_of(cat_vars)) %>%
-  pivot_longer(-Diabetes_binary, names_to = "variable", values_to = "value") %>%
-  ggplot(aes(x = value, fill = Diabetes_binary)) +
-  geom_bar(position = "fill") +
-  facet_wrap(~variable, scales = "free_x") +
-  scale_fill_viridis_d(option = "plasma", end = .7) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  labs(title = "Distribution of Diabetes Status by Categorical Variables",
-       x = "Variable Value",
-       y = "Proportion",
-       fill = "Diabetes Status")
 
 ```
 
 
-### Outcomes
-#### Based on the clear differences of proportional incidence of diabetes via visual inspection, choice for parameters in rank-order:
+### Model Selection
+#### Based on differences of proportional incidence of diabetes via visual inspection, and historical context for health factors negatively associated with poor health in general, the choice for parameters in rank-order are:
 1. HighBP
 2. HighChol
 3. DiffWalk
 4. HeartDiseaseorAttack
 5. Smoker
-6. Stroke
+6. GenHlth
  
- ## TODO: Make plots of just those variables
  
+ 
+[Click here for the Modeling Page](Modeling.html)
