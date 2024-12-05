@@ -508,18 +508,27 @@ hlth_density <- ggplot(health_days, aes(x = Diabetes_binary, fill = day_group)) 
 ```
 
 
-### Covariance
-
-
-
 ### Correlation Plot
 #### Purpose: Determine correlations between the predictor variable and numeric factors
 ### Outcome: Keep for use in model. Health metrics are largely independent of one another. 
 ```{r}
-num_vars <- diabeetus |>
-  select(all_of(num_vars))
 
-cor_matrix <- cor(num_vars, use = "complete.obs")
+num_vars <- c("BMI", "MentHlth", "PhysHlth")
+
+numeric_correlations <- diabeetus |>
+  select(Diabetes_binary, all_of(num_vars)) |>
+  mutate(Diabetes_binary = as.numeric(Diabetes_binary) - 1) |>
+  cor()
+
+ggplot(data = as.data.frame(numeric_correlations) %>%
+         rownames_to_column("var1") %>%
+         pivot_longer(-var1, names_to = "var2", values_to = "correlation")) +
+  geom_tile(aes(x = var1, y = var2, fill = correlation)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Correlation Heatmap of Numeric Variables")
+
 # Create correlation plot
 corrplot(cor_matrix,
          method = "color",
@@ -528,6 +537,24 @@ corrplot(cor_matrix,
          tl.col = "black",
          tl.srt = 45,
          diag = FALSE)
+
+# Contingency table heat map for categorical variables
+cat_vars <- names(diabeetus)[sapply(diabeetus,is.factor)]
+
+diabeetus %>%
+  select(Diabetes_binary, all_of(cat_vars)) %>%
+  pivot_longer(-Diabetes_binary, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, fill = Diabetes_binary)) +
+  geom_bar(position = "fill") +
+  facet_wrap(~variable, scales = "free_x") +
+  scale_fill_viridis_d(option = "plasma", end = .7) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Distribution of Diabetes Status by Categorical Variables",
+       x = "Variable Value",
+       y = "Proportion",
+       fill = "Diabetes Status")
+
 ```
 
 
