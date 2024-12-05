@@ -154,28 +154,28 @@ diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_co
       long_label = "Income scale (INCOME2 see codebook)")
   )
 
-best_recipe <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
-                      Age + GenHlth + PhysActivity,
-                      data = diabeetus) |>
-  step_dummy(all_nominal_predictors())
-
-# Create Random Forest Spec with best predictors
-rf_model <- rand_forest(
-  mtry = 4, # Based on best parameters from CV
-  trees = 50,
-  min_n = 20
-) |>
-  set_engine("ranger") |>
-  set_mode("classification")
-
-rf_wkf <- workflow() |>
-  add_recipe(best_recipe) |>
-  add_model(rf_model)
-
-final_fit <- fit(rf_wkf, diabeetus)
+# best_recipe <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
+#                       Age + GenHlth + PhysActivity,
+#                       data = diabeetus) |>
+#   step_dummy(all_nominal_predictors())
+#
+# # Create Random Forest Spec with best predictors
+# rf_model <- rand_forest(
+#   mtry = 4, # Based on best parameters from CV
+#   trees = 50,
+#   min_n = 20
+# ) |>
+#   set_engine("ranger") |>
+#   set_mode("classification")
+#
+# rf_wkf <- workflow() |>
+#   add_recipe(best_recipe) |>
+#   add_model(rf_model)
+#
+# final_fit <- fit(rf_wkf, diabeetus)
 
 # Save model for API endpoints
-model <- final_fit
+model <- readRDS("diabetes_model.rds")
 
 #* @apiTitle Diabetes Prediction API
 
@@ -187,18 +187,19 @@ model <- final_fit
 #* @param GenHlth General health (1-5)
 #* @param PhysActivity Physical activity (0/1)
 #* @get /pred
-function(HighBP = "no", HighChol = "no", BMI = 25, Age = "50-54", GenHlth = "poor", PhysActivity = "no") {
+function(HighBP = "no", HighChol = "no", DiffWalk = "no", BMI = 25, Age = "50-54", GenHlth = "poor", HeartDiseaseorAttack = "no", Smoker = "no") {
   prediction_data <- data.frame(
     HighBP = factor(HighBP, levels = levels(diabeetus$HighBP)),
     HighChol = factor(HighChol, levels = levels(diabeetus$HighChol)),
+    DiffWalk = factor(DiffWalk, levels = levels(diabeetus$DiffWalk)),
     BMI = as.numeric(BMI),
     Age = factor(Age, levels = levels(diabeetus$Age)),
     GenHlth = factor(GenHlth, levels = levels(diabeetus$GenHlth)),
-    PhysActivity = factor(PhysActivity, levels = levels(diabeetus$PhysActivity))
+    HeartDiseaseorAttack = factor(HeartDiseaseorAttack, levels = levels(diabeetus$HeartDiseaseorAttack)),
+    Smoker = factor(Smoker, levels = levels(diabeetus$Smoker))
   )
   # Generate predictions
   predict(model, prediction_data, type = "prob")
-
 }
 
 #* API Information
@@ -206,7 +207,7 @@ function(HighBP = "no", HighChol = "no", BMI = 25, Age = "50-54", GenHlth = "poo
 function() {
   list(
     name = "David Pressley",
-    github_url = "rendered github pages site URL"
+    github_url = "https://pressleydavid.github.io/p3/EDA.html"
   )
 }
 
@@ -215,7 +216,7 @@ function() {
 #* @get /confusion
 function() {
   # Create predictions using the fitted model
-  preds <- predict(final_rf_fit, new_data = diabeetus, type = "class")
+  preds <- predict(model, new_data = diabeetus, type = "class")
 
   # Create confusion matrix
   conf_data <- data.frame(
@@ -235,12 +236,10 @@ function() {
 }
 
 # Example API calls:
-# http://127.0.0.1:8000/pred?HighBP=1&HighChol=1&BMI=30&Age=7&GenHlth=3&PhysActivity=0
-# http://127.0.0.1:8000/pred?HighBP=0&HighChol=0&BMI=22&Age=2&GenHlth=1&PhysActivity=1
-# http://127.0.0.1:8000/pred?HighBP=1&HighChol=0&BMI=35&Age=10&GenHlth=4&PhysActivity=0
+#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=yes&DiffWalk=yes&BMI=30&Age=50-54&GenHlth=good&HeartDiseaseorAttack=yes&Smoker=yes
 
+#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=yes&DiffWalk=yes&BMI=45&Age=25-29&GenHlth=poor&HeartDiseaseorAttack=yes&Smoker=yes
 
-# Its interesting that the .pred_Diabetes is 0.3046 when HighBP = Yes, HighChol = Y
-# BMI - 50, Age 50-54, GenHlth = excellent physActivity = yes
+#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=no&DiffWalk=yes&BMI=35&Age=65-69&GenHlth=fair&HeartDiseaseorAttack=no&Smoker=yes
 
 

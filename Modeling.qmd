@@ -345,10 +345,12 @@ print(metrics)
 # get best RF parameters
 rf_tuner |> collect_metrics()
 best_rf <- select_best(rf_tuner, metric = "mn_log_loss")
+### Note: best mtry for API.R = 4
 #Finalize workflow with best parameters
 final_wkf <- finalize_workflow(rf_wkf, best_rf)
 #Fit final model to training data
 final_rf_fit <- fit(final_wkf, data = train)
+saveRDS(final_rf_fit, "diabetes_model.rds")
 #Print tree model
 rf_model <- final_rf_fit |> extract_fit_engine()
 
