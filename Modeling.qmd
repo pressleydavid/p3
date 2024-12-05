@@ -1,4 +1,12 @@
-```{r, echo=FALSE}
+---
+title: "ST558 Final Project - Predictive Modeling of Diabetes Prevalence - Model Fitting and Selection"
+format:
+  html:
+    code-fold: true
+    output-fold: true
+---
+
+```{r, echo=FALSE, message=FALSE}
 library(tidyverse)
 library(tidymodels)
 library(tree)
@@ -6,19 +14,35 @@ library(doParallel)
 library(rpart.plot)
 library(ranger)
 ```
-### Purpose: Select the best model for predicting Diabetes
-Choose form of model
-Fit model to data using some algorithm
-Usually can be written as a problem where we minimize some loss function
-Evaluate the model using a metric
-RMSE very common for a numeric response
-Ideally we want our model to predict well for observations it has yet to see!
+#### Purpose: Select the best model for predicting Diabetes
 
-A classification tree is a decision tree model used for categorical outcomes (like predicting yes/no). It recursively splits the data into groups based on predictor variables, aiming to create regions with similar response values. At each leaf node, it predicts the most common class in that region.
+#### Strategy:
+1. Choose form of model - We chose predictors / features of: HighBP, HighChol, BMI, Age, GenHlth, and PhysActivity based on our EDA
+2. Fit model to data using a classification tree and a random forest tree, per the project requirements
+3. Evaluate the model using log loss metric
+
+#### Background:
+We will perform an evaluation of 2 different model types:
+
+1. Classification Tree
+2. Random Forest 
+
+In our case, all but one of our chosen predictors to tune our hyperparameters are yes/no. Age and General Health are multi-level factors. Age has a 5 year range between less than 18 and over 80 and General Health is a 5 level factor ranging from poor to excellent.
+
+##### Classification Trees
+A classification tree is a decision tree model used for categorical outcomes.  It recursively splits the data into groups based on predictor variables, aiming to create regions with similar response values. At each leaf node, it predicts the most common class in that region. It is considered a greedy algorithm, because it only focuses on the best split for a given node without considering the best combination of splits for the entire tree. That is, once a split is made the model doesn't revisit the node to make any adjustments. We will use a 5-fold Cross Validation and a 70/30 training/test split of our initial data
+
+###### Random Forest
+A random forest is a decision tree model also used for categorical outcomes. A random forest takes samples of multiple subsets by bootstrapping, which is sampling data points in the data set. Sampling with replacement means duplicate data points may appear in the training data set. Data points which are not sampled are held over for testing and are known as "out-of-bag" observations and can be used to evaluate the model's performance without requiring a separate validation set. For each bootstrapped subset, a decision tree is built. Each tree is grown independently and to a depth either specified or chosen by the modeling framework (e.g. tidymodels). Random forests are considered ensemble models in that they combine the predictions of many individual trees to improve accuracy and robustness. Additionally, the randomness of the bootstrapping helps to reduce overfitting, which is a condition that occurs when the model does a great job of fitting data it has already seen (training data), but does a poor job of generalizing or predicting outcomes for data it hasn't yet seen (test data/real-world data). 
+
+Random forests are a collective of decision trees, while Classification trees as described above are greedy and only deal with the data in top-down fashion.
+
+[Classification Trees are the Cathedral. Random Forests are the Bazaar.](https://en.wikipedia.org/wiki/The_Cathedral_and_the_Bazaar)
+
+
 
 ### Why 5-K CV?
-### From ESLII: ch7: if the learning curve has a considerable slope at the given
-training set size, five- or tenfold cross-validation will overestimate the true prediction error. Whether this bias is a drawback in practice depends on the objective. On the other hand, leave-one-out cross-validation has low bias but can have high variance. Overall, five- or tenfold cross-validation are recommended as a good compromise: see Breiman and Spector (1992) and Kohavi (1995). Figure 7.9 shows the prediction error and tenfold cross-validation curve
+From ESLII: ch7: if the learning curve has a considerable slope at the given training set size, five or tenfold cross-validation will overestimate the true prediction error. Whether this bias is a drawback in practice depends on the objective. On the other hand, leave-one-out cross-validation has low bias but can have high variance. Overall, five or tenfold cross-validation are recommended as a good compromise: see Breiman and Spector (1992) and Kohavi (1995). Figure 7.9 shows the prediction error and tenfold cross-validation curve
 
 ### Read in CSV and map factor levels
 ```{r}
@@ -172,11 +196,8 @@ diabeetus <- read_csv("diabetes_binary_health_indicators_BRFSS2015.csv", show_co
          )
 ```
 
-
-
-### For categorical responses, we use log-loss (see notes for more detail)
-### Tidymodels Implementation of a 5XCV
-### Split into training and test
+### Implement the Machine Learning Pipeline for Classification Tree and Random Forest
+1. Split into training and test
 ```{r}
 set.seed(462)
 split <- initial_split(diabeetus, prop = 0.7)
@@ -185,20 +206,33 @@ test <- testing(split)
 
 # Create 5XCV splits of train
 diabeetus_folds <- vfold_cv(train, v = 5)
+```
 
-# Create recipe with 5+ predictors, based on EDA selection
-# 1. HighBP
-# 2. HighChol
-# 3. DiffWalk
-# 4. HeartDiseaseorAttack
-# 5. Smoker
-# 6. Stroke
+2. Recipe Creation with 8 predictors based on EDA
+- HighBP
+- HighChol
+- DiffWalk
+- Age
+- HeartDiseaseorAttack
+- Smoker
+- General Health
+- BMI
+
+
+```{r}
+# Create recipe with 8 predictors, based on EDA selection
 
 # 6 Predictors
-tree_rec1 <- recipe(Diabetes_binary ~ HighBP + HighChol + BMI +
-                 Age + GenHlth + PhysActivity, data = train) |>
-  step_dummy(HighBP, HighChol, Age, GenHlth, PhysActivity)
+tree_rec1 <- recipe(Diabetes_binary ~ HighBP + HighChol + DiffWalk +
+                 Age + GenHlth + BMI + HeartDiseaseorAttack + Smoker , data = train) |>
+  step_dummy(HighBP, HighChol, DiffWalk, HeartDiseaseorAttack, Smoker, Age, GenHlth)
+```
 
+3. Model Setup and Tuning
+- Decision Tree: tunes cost_complexity and tree_depth parameters
+- Random Forest: tunes mtry parameter and builds 50 trees
+
+```{r}
 # Create the decision tree model
 tree_model <- decision_tree(
   cost_complexity = tune(),
@@ -213,29 +247,27 @@ tree_wkf <- workflow() |>
   add_recipe(tree_rec1) |>
   add_model(tree_model)
 
-
 # tree_grid_reg <- grid_regular(cost_complexity(),
 #                           tree_depth(5),
 #                           levels = 5)
 
 tree_grid_rand <- grid_random(cost_complexity(),
-                              tree_depth(range = c(1,2)),
-                              size = 5)
+                              tree_depth(range = c(1,5)),
+                              size = 10)
 
 # Parallel processing setup (optional)
-# cl <- makeCluster(detectCores() - 1)
-# registerDoParallel(cl)
+cl <- makeCluster(detectCores() - 1)
+registerDoParallel(cl)
 
 # Add verbosity and logging
 control <- control_grid(
   verbose = TRUE,             
   save_pred = TRUE,         
   save_workflow = TRUE,
-  allow_par = FALSE 
+  allow_par = TRUE 
 )
 
 # Use CV to select tuning parameters with control
-set.seed(462)
 tuner <- tree_wkf |>
   tune_grid(
     resamples = diabeetus_folds,
@@ -251,8 +283,7 @@ metrics <- tuner |>
   filter(.metric == "mn_log_loss") |>
   arrange(mean)
 
-# Stop the parallel backend
-# stopCluster(cl)
+
 
 # Print metrics
 print(metrics)
@@ -266,26 +297,8 @@ final_tree_fit <- fit(final_wf, data = train)
 
 #Print tree model
 tree_model <- final_tree_fit |> extract_fit_engine()
-rpart.plot::rpart.plot(tree_model, roundint = FALSE)
 
 
-
-#Plot Metrics
-# tuner %>%
-#   collect_metrics() %>%
-#   mutate(tree_depth = factor(tree_depth)) %>%
-#   ggplot(aes(cost_complexity, mean, color = tree_depth)) +
-#   geom_line(linewidth = 1.5, alpha = 0.6) +
-#   geom_point(size = 2) +
-#   facet_wrap(~ .metric, scales = "free", nrow = 2) +
-#   scale_x_log10(labels = scales::label_number()) +
-#   scale_color_viridis_d(option = "plasma", begin = .9, end = 0)
-```
-
-
-
-### Random Forest
-```{r}
 rf_model <- rand_forest(
   mtry = tune(),
   trees = 50,
@@ -305,10 +318,11 @@ rf_wkf <- workflow() |>
 
 control <- control_grid(
   verbose = TRUE,         # Print progress updates during tuning
-  # allow_par = TRUE,       # Enable parallel processing
+  allow_par = TRUE,       # Enable parallel processing
   save_pred = TRUE,       # Save predictions for each resample
   save_workflow = TRUE    # Save the workflow for later analysis
 )
+
 #Tune random forest using log loss
 rf_tuner <- rf_wkf |>
   tune_grid(
@@ -317,6 +331,16 @@ rf_tuner <- rf_wkf |>
     grid = rf_grid,
     metrics = metric_set(accuracy, mn_log_loss)
   )
+
+# After running tune_grid(), collect and inspect metrics
+metrics <- rf_tuner |> 
+  collect_metrics() |>
+  filter(.metric == "mn_log_loss") |>
+  arrange(mean)
+
+# Print metrics to see range of performance
+print(metrics)
+
 
 # get best RF parameters
 rf_tuner |> collect_metrics()
@@ -327,17 +351,19 @@ final_wkf <- finalize_workflow(rf_wkf, best_rf)
 final_rf_fit <- fit(final_wkf, data = train)
 #Print tree model
 rf_model <- final_rf_fit |> extract_fit_engine()
-# rpart.plot::rpart.plot(rf_model, roundint = FALSE)
 
-# Get proportions of OOB Samples
-rf_model$prediction.error
+
 
 # Make predictions on test set
 rf_predictions <- predict(final_rf_fit, new_data = test, type = "prob") %>%
   bind_cols(test)
+
+# Stop the parallel backend
+stopCluster(cl)
 ```
 
-### Select Best Model
+
+### Fit and Select Best Model - fit and select best model based on log loss, then evaluate against test set
 ```{r}
 # Fit final model with best parameters
 final_tree_wkf <- tree_wkf |>
@@ -360,27 +386,144 @@ winner <- bind_rows(
 ) |>
   select(model, .metric, .estimate)
 winner
+
+
+```
+### Prediction error based on Out-of-bag samples
+```{r}
+# Get proportions of OOB Samples
+rf_model$prediction.error
 ```
 
-###Outcome
+## Plot Metrics from Classification Tree and Random Forest to show Accuracy and Confidence
+
+```{r}
+# Plot metrics from Classification Tree
+plot_metrics_tree <- tuner %>%
+  collect_metrics() %>%
+  mutate(tree_depth = factor(tree_depth, levels = sort(as.numeric(unique(tree_depth))))) %>%
+  ggplot(aes(cost_complexity, mean, color = tree_depth)) +
+  geom_line(linewidth = 1.5, alpha = 0.6) +
+  geom_point(size = 2) +
+  geom_text(
+    aes(label = as.numeric(tree_depth)),  
+    vjust = 2.5,                        
+    size = 3,
+    color = "black"
+  ) +
+  facet_wrap(~ .metric,
+             scales = "free",
+             nrow = 2,
+             labeller = as_labeller(c(
+               accuracy = "Accuracy (Higher y: More Accurate)",
+               mn_log_loss = "Log Loss (Lower y: Greater Confidence)"
+             ))
+  ) +
+  scale_x_log10(
+    labels = scales::label_number(),
+    name = "Cost Complexity (← More Complex (Overfit?) | Simpler → (Underfit?))"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) +
+  scale_color_viridis_d(option = "plasma", begin = .9, end = 0) +
+  labs(
+    color = "Tree Depth"
+  ) +
+  theme(
+    axis.title = element_text(size = 14), 
+    axis.text = element_text(size = 12),  
+    strip.text = element_text(size = 14)  
+  )
+
+plot_metrics_tree
+
+# Plot metrics from Random Forest
+plot_metrics_rf <- rf_tuner %>%
+  collect_metrics() %>%
+  ggplot(aes(x = mtry, y = mean, color = .metric)) +
+  geom_line(linewidth = 1.5, alpha = 0.6) +
+  geom_point(size = 2) +
+  facet_wrap(~ .metric,
+             scales = "free",
+             nrow = 2,
+             labeller = as_labeller(c(
+               accuracy = "Accuracy (Higher y: More Accurate)",
+               mn_log_loss = "Log Loss (Lower y: Greater Confidence)"
+             ))
+  ) +
+  scale_x_continuous(
+    breaks = unique(rf_tuner %>% collect_metrics() %>% pull(mtry)),
+    name = "mtry (Number of Features Tried)"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.2))) +
+  scale_color_viridis_d(option = "plasma", begin = .9, end = 0) +
+  labs(
+    color = "Metric"
+  ) +
+  theme(
+    axis.title = element_text(size = 14), 
+    axis.text = element_text(size = 12),  
+    strip.text = element_text(size = 14)  
+  )
+
+plot_metrics_rf
+
+# Random Forest plot with winner highlight
+# Classification Tree plot with winner highlight  
+# Get the best performing parameters
+# Get best parameters for RF
+# For RF model
+best_rf <- rf_tuner %>%
+  collect_metrics() %>%
+  filter(.metric == "accuracy") %>%
+  slice_max(mean) %>%
+  select(mtry)
+
+# Add highlights
+plot_metrics_rf + 
+  geom_point(data = rf_tuner %>%
+               collect_metrics() %>%
+               filter(mtry == best_rf$mtry),
+             size = 5, shape = 8,
+             color = "red") +
+  annotate("text", x = 2, y = 0.867,
+           label = "* The Chosen Model", hjust = 0)
+
+# For tree model
+# For tree model
+best_tree <- tuner %>%
+ collect_metrics() %>%
+ filter(.metric == "accuracy") %>%
+ slice_max(mean) %>%
+ select(tree_depth, cost_complexity)
+
+plot_metrics_tree +
+ geom_point(data = tuner %>%
+              collect_metrics() %>%
+              filter(tree_depth == best_tree$tree_depth,
+                    cost_complexity == best_tree$cost_complexity),
+            size = 5, shape = 8,
+            color = "red") +  # Changed to use fixed color
+ annotate("text", x = 0.0000001, y = 0.865,
+          label = "* The Chosen Model", hjust = 0)
+```
+
+### Outcome
 The Random Forest model performs better on both metrics:
-- Higher accuracy (0.866 vs 0.861)
-- Lower log loss (0.317 vs 0.403) 
 
-Since we're primarily using log loss as our evaluation metric, the Random Forest wins since it has a lower log loss value of 0.317 compared to the Classification Tree: 0.403 
+- Higher accuracy (0.865 vs 0.863): better by 0.25%
+- Lower log loss (0.321 vs 0.359):  better by 10.62%
 
-To put this in context:
-- Log loss ranges from 0 to ∞, with 0 being perfect predictions
+### Interpretations
 - Lower log loss indicates better probability estimates for class predictions
-- The Random Forest's log loss of 0.317 indicates it's providing better probability estimates than the Classification Tree's 0.403
+- The bottoms-up Bazaar beats top-down dogma of the Cathedral once again!
+- The prediction error for out-of-bag samples indicates that the random forest misclassifies the prediction of Diabetes about 9.85% of the time
 
-Therefore, Random Forest is the overall winner.
+This makes sense because:
 
-This makes theoretical sense because:
 1. Random Forests typically outperform single trees by averaging many trees
 2. The randomization in feature selection helps prevent overfitting
 3. Random Forests generally provide better probability estimates due to their ensemble nature
 
 
 
-[Click here for the Modeling Page](Modeling.html)
+[Click here for the EDA Page](EDA.html)
