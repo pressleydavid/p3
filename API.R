@@ -216,30 +216,34 @@ function() {
 #* @get /confusion
 function() {
   # Create predictions using the fitted model
+  # Get predictions
   preds <- predict(model, new_data = diabeetus, type = "class")
 
-  # Create confusion matrix
-  conf_data <- data.frame(
+  # Create confusion matrix using yardstick
+  cm <- conf_mat(data = data.frame(
     truth = diabeetus$Diabetes_binary,
-    prediction = preds$.pred_class
-  )
+    pred = preds$.pred_class
+  ),
+  truth,
+  pred)
 
-  # Create plot
-  p <- ggplot(conf_data, aes(x = truth, y = prediction)) +
-    geom_jitter(alpha = 0.2, width = 0.2, height = 0.2) +
-    labs(title = "Confusion Matrix",
-         x = "True Value",
-         y = "Predicted Value") +
+  # Create confustion matrix heatmap
+  p <- autoplot(cm, type = "heatmap") +
+    labs(title = "Confusion Matrix Heatmap") +
     theme_minimal()
 
   print(p)
+
 }
 
 # Example API calls:
-#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=yes&DiffWalk=yes&BMI=30&Age=50-54&GenHlth=good&HeartDiseaseorAttack=yes&Smoker=yes
+# Bryan Johnson
+#http://127.0.0.1:8000/pred?HighBP=no&HighChol=no&DiffWalk=no&BMI=29&Age=45-49&GenHlth=excellent&HeartDiseaseorAttack=no&Smoker=no
 
-#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=yes&DiffWalk=yes&BMI=45&Age=25-29&GenHlth=poor&HeartDiseaseorAttack=yes&Smoker=yes
+# Tommy Boy
+#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=yes&DiffWalk=yes&BMI=45&Age=30-34&GenHlth=poor&HeartDiseaseorAttack=yes&Smoker=yes
 
-#http://127.0.0.1:8000/pred?HighBP=yes&HighChol=no&DiffWalk=yes&BMI=35&Age=65-69&GenHlth=fair&HeartDiseaseorAttack=no&Smoker=yes
+# Me
+#http://127.0.0.1:8000/pred?HighBP=no&HighChol=no&DiffWalk=no&BMI=25&Age=50-54&GenHlth=good&HeartDiseaseorAttack=no&Smoker=no
 
 
